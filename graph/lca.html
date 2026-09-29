@@ -25,7 +25,11 @@
 .sv-content table.tb td.c-eliminated { background: var(--viz-eliminated); color: rgba(0,0,0,.4); }
 .sv-content table.dep { width: auto; font-size: 12.5px; margin: 0 0 12px; }
 .sv-content table.dep th, .sv-content table.dep td { padding: 2px 8px; text-align: center; }
-.note { font-size: 12.5px; color: var(--md-text-light); }
+.sv-content table.dep td.c-active { background: var(--viz-active); color: #fff; font-weight: 700; }
+.sv-content table.dep td.c-comparing { background: var(--viz-comparing); color: #222; font-weight: 700; }
+.sv-content table.dep td.c-swapping { background: var(--viz-swapping); color: #fff; font-weight: 700; }
+.sv-content table.dep td.c-done { background: var(--viz-done); color: #fff; font-weight: 700; }
+.sv-content table.dep td.c-eliminated { background: var(--viz-eliminated); color: rgba(0,0,0,.4); }
 .viz-controls select { font: inherit; font-size: 13.5px; padding: 4px 6px;
   border: 1px solid rgba(0,0,0,.24); border-radius: 3px; background: #fff; color: var(--md-text); }
 </style>
@@ -35,7 +39,7 @@
 
 <h1>最近公共祖先 LCA</h1>
 
-<p><strong>最近公共祖先</strong>（Lowest Common Ancestor，LCA）是 rooted 树上两点之间「第一次汇合」的那个祖先：给定结点 <code>u、v</code>，它们的 LCA 是同时为 <code>u</code> 与 <code>v</code> 的祖先（约定结点是自己和自己的祖先）且<strong>深度最大</strong>的结点。树上路径查询、倍增、虚树、LCA 与树上差分的组合，几乎都从这里起步。</p>
+<p><strong>最近公共祖先</strong>（Lowest Common Ancestor，LCA）是有根树上两点之间「第一次汇合」的那个祖先：给定结点 <code>u、v</code>，它们的 LCA 是同时为 <code>u</code> 与 <code>v</code> 的祖先（约定结点是自己和自己的祖先）且<strong>深度最大</strong>的结点。树上路径查询、树上差分、虚树、树的直径，几乎都从这里起步。</p>
 
 <h2>算法原理</h2>
 
@@ -43,7 +47,7 @@
 
 <h3>朴素做法：先对齐深度，再同步上跳</h3>
 
-<p>若 <code>dep[u] &gt; dep[v]</code>，先把 <code>u</code> 一路上跳到与 <code>v</code> 同深；然后两者同时上跳，直到相遇，相遇点即 LCA。正确性来自一个单调事实：两条到根的路径一旦汇合，之后便完全重合，所以「第一次相等的位置」就是最深的公共祖先。每次跳一级，代价 <code>O(depth)</code>，链状树上退化到 <code>O(n)</code>。</p>
+<p>若 <code>dep[u] &gt; dep[v]</code>，先把 <code>u</code> 一路上跳到与 <code>v</code> 同深；然后两者同时上跳，直到相遇，相遇点即 LCA。正确性来自一个单调事实：两条到根的路径一旦汇合，之后便完全重合，所以「第一次相等的位置」就是最深的公共祖先。每次只跳一级，代价 <code>O(depth)</code>，链状树上退化到 <code>O(n)</code>。</p>
 
 <pre><code>function lca_naive(u, v):
     while dep[u] &gt; dep[v]: u = fa[u]        // 较深的 u 上跳
@@ -56,41 +60,41 @@
 <p>把「跳一级」换成「跳 2<sup>k</sup> 级」就能把线性变成对数。<strong>定义 <code>fa[k][v]</code> = <code>v</code> 向上 2<sup>k</sup> 级的祖先</strong>，则 <code>fa[0][v] = fa[v]</code>，且递推只需查两次上一层：</p>
 
 <pre><code>// 预处理（DFS 求出 dep / fa[0] 之后按 k 递推）
-for v: fa[0][v] = parent(v)                 // 根的父结点记 0（不存在）
+for v: fa[0][v] = parent(v)                  // 根的父结点记 0（不存在）
 for k = 1 .. ⌊log2 n⌋:
-    for v: fa[k][v] = fa[k-1][ fa[k-1][v] ] // 先跳 2^(k-1)，再跳 2^(k-1)
+    for v: fa[k][v] = fa[k-1][ fa[k-1][v] ]  // 先跳 2^(k-1)，再跳 2^(k-1)
 
 // 查询
 function lca(u, v):
-    if dep[u] &lt; dep[v]: swap(u, v)           // 保证 u 不浅于 v
+    if dep[u] &lt; dep[v]: swap(u, v)            // 保证 u 不浅于 v
     diff = dep[u] - dep[v]
-    for k = K downto 0:                      // ① 深度对齐：按二进制位上跳
+    for k = K downto 0:                       // ① 深度对齐：按二进制位上跳
         if diff &amp; (1 &lt;&lt; k): u = fa[k][u]
-    if u = v: return u                       // u 本来就是 v 的祖先
-    for k = K downto 0:                      // ② 同步上跳：保持「不相遇」
+    if u = v: return u                        // u 本来就是 v 的祖先
+    for k = K downto 0:                       // ② 同步上跳：只在不等时跳
         if fa[k][u] ≠ fa[k][v]:
             u = fa[k][u]; v = fa[k][v]
-    return fa[0][u]                          // 再跳一级即 LCA</code></pre>
+    return fa[0][u]                           // 再跳一级即 LCA</code></pre>
 
-<p><strong>为什么第二步要「从高位到低位、只在不等时跳」</strong>：不变式是「跳完之后 <code>u、v</code> 仍然不同，但它们的父结点关系不变」。若 <code>fa[k][u] ≠ fa[k][v]</code>，说明 LCA 在这两点的<strong>更上方</strong>，此时一起上跳 2<sup>k</sup> 级绝不会越过 LCA；反之若相等则可能已经跳过 LCA，必须保留。从高位开始贪心，就把「到 LCA 孩子那一层」的距离用二进制拼了出来，最后 <code>fa[0][u]</code> 恰好是 LCA。<code>k</code> 必须<strong>从大到小</strong>枚举，否则可能少跳。</p>
+<p><strong>为什么第二步要「从高位到低位、只在不等时跳」</strong>：维护的不变式是「跳完之后 <code>u、v</code> 仍然不同、仍然同深，且 LCA 依然是两者的祖先」。若 <code>fa[k][u] ≠ fa[k][v]</code>，说明 LCA 在这两点的<strong>更上方</strong>，此时一起上跳 2<sup>k</sup> 级绝不会越过 LCA；反之若相等（或同为不存在），说明这一跳可能恰好到达甚至越过 LCA，必须保留，改用更小的 k。从高位开始贪心，就把「跳到 LCA 的孩子那一层」的距离用二进制拼了出来，最后 <code>fa[0][u]</code> 恰好是 LCA。<code>k</code> 必须<strong>从大到小</strong>枚举，否则会少跳。</p>
 
 <div class="admonition tip">
 <div class="admonition-title">提示：另外两条通往 LCA 的路</div>
-<p>① <strong>DFS 序 + ST 表（欧拉序 / 深度序列）</strong>：<code>u、v</code> 的 LCA 等于欧拉序中第一次出现 <code>u</code>、<code>v</code> 之间深度最小的结点，于是 LCA 化为 <strong>RMQ</strong>，预处理 <code>O(n log n)</code>、查询 <code>O(1)</code>，且支持<strong>在线</strong>。② <strong>Tarjan 离线</strong>：DFS + 并查集，把 <code>q</code> 次询问一次遍历答完，<code>O(n + q·α(n))</code>，但必须先知道全部询问，且要额外存询问表。③ 树链剖分也能 <code>O(log² n)</code> 在线求 LCA，顺便还能做路径修改。</p>
+<p>① <strong>DFS 序 + ST 表（欧拉序 / 深度序列）</strong>：<code>u、v</code> 的 LCA 等于欧拉序中第一次出现 <code>u</code>、<code>v</code> 之间深度最小的结点，于是 LCA 化为 <strong>RMQ</strong>，预处理 <code>O(n log n)</code>、查询 <code>O(1)</code>，支持<strong>在线</strong>。② <strong>Tarjan 离线</strong>：DFS + 并查集，把 <code>q</code> 次询问一次遍历答完，<code>O((n+q)·α(n))</code>，但必须先知道全部询问，不能在线回答。③ <strong>树链剖分</strong>也能在线求 LCA（<code>O(log n)</code>～<code>O(log² n)</code>），顺便还能做路径修改（本页不演示）。</p>
 </div>
 
 <h2>可视化演示</h2>
 
-<p>演示分两个阶段。<strong>阶段 A</strong>：逐格填倍增表 <code>fa[k][v]</code>（橙＝正在填的格，蓝＝用到的来源格，绿＝该行填完，<code>—</code> 表示祖先不存在，同类的 <code>—</code> 会合并成一步）。<strong>阶段 B</strong>：查询 <code>LCA(u, v)</code>——先淡色标出两条到根的路径，再「深度对齐」（较深的点按二进制上跳）、「同步上跳」（不等才跳），最后给出答案。<code>dep[]</code> 表在右侧，结点圆内是编号、圆下方是深度。</p>
+<p>演示分两个阶段。<strong>阶段 A</strong>：逐格填倍增表 <code>fa[k][v]</code>（橙＝本步刚填上的格，蓝＝递推用到的来源格，绿＝该行已填完，<code>—</code> 表示祖先不存在，同类的 <code>—</code> 合并成一步说明）。<strong>阶段 B</strong>：查询 <code>LCA(u, v)</code>——先标出两条到根的路径（蓝＝u 侧、橙＝v 侧、绿＝已汇合的公共段），再做「深度对齐」（较深的点按二进制上跳）与「同步上跳」（<strong>不等才跳</strong>）；红色是刚跳到的新位置，灰色是被跳过的旧位置或越界的 <code>—</code>。右侧是 <code>dep[]</code> 表与倍增表；结点圆内是编号，圆下方是深度。</p>
 
 <div class="viz-panel">
   <div class="viz-stage">
     <div class="g-wrap">
       <div class="g-svg" id="gsvg"></div>
       <div class="g-side">
-        <span class="box-label">深度表 dep[] 与父结点</span>
+        <span class="box-label">深度表 dep[] 与父结点 / 左右孩子</span>
         <table class="dep" id="depTbl"></table>
-        <span class="box-label">倍增表 fa[k][v]（行 k，列 v；— 表示不存在）</span>
+        <span class="box-label">倍增表 fa[k][v]（行 k，列 v；· 未填，— 不存在）</span>
         <table class="tb" id="faTbl"></table>
       </div>
     </div>
@@ -98,11 +102,11 @@ function lca(u, v):
   <div class="viz-msg" id="msg"></div>
   <div class="viz-legend">
     <span class="chip"><span class="sw" style="background:var(--viz-default)"></span>未参与 / 未填写</span>
-    <span class="chip"><span class="sw" style="background:var(--viz-comparing)"></span>正在填写的格 / v 侧指针</span>
-    <span class="chip"><span class="sw" style="background:var(--viz-swapping)"></span>跳到的新位置</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-comparing)"></span>本步填写的格 / v 侧指针</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-swapping)"></span>刚跳到的新位置</span>
     <span class="chip"><span class="sw" style="background:var(--viz-active)"></span>来源格 / u 侧指针</span>
-    <span class="chip"><span class="sw" style="background:var(--viz-done)"></span>LCA / 答案</span>
-    <span class="chip"><span class="sw" style="background:var(--viz-eliminated)"></span>—（祖先不存在）</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-done)"></span>已填完 / LCA 答案</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-eliminated)"></span>—（不存在 / 旧位置）</span>
   </div>
   <div id="runner"></div>
   <div class="viz-controls">
@@ -118,24 +122,24 @@ function lca(u, v):
 <table>
   <thead><tr><th>做法 / 指标</th><th>时间</th><th>空间</th><th>说明</th></tr></thead>
   <tbody>
-    <tr><td>倍增预处理</td><td><code>O(n log n)</code></td><td><code>O(n log n)</code></td><td>DFS 求 <code>dep/parent</code> 为 O(n)，表有 <code>⌊log2 n⌋+1</code> 行</td></tr>
-    <tr><td>倍增单次查询</td><td><code>O(log n)</code></td><td>—</td><td>两段循环各枚举一遍 k，从高位到低位</td></tr>
-    <tr><td>朴素上跳</td><td>每次 <code>O(n)</code>（即 O(depth)）</td><td><code>O(n)</code></td><td>无需预处理；链状树最坏 O(n)，批量的深查询会被卡</td></tr>
-    <tr><td>DFS 序 + ST 表</td><td>预处理 <code>O(n log n)</code>，查询 <code>O(1)</code></td><td><code>O(n log n)</code></td><td>LCA 化为欧拉序上的 RMQ</td></tr>
+    <tr><td>倍增预处理</td><td><code>O(n log n)</code></td><td><code>O(n log n)</code></td><td>DFS 求 <code>dep / fa[0]</code> 为 O(n)，表有 <code>⌊log2 n⌋+1</code> 行</td></tr>
+    <tr><td>倍增单次查询</td><td><code>O(log n)</code></td><td>—</td><td>两段循环各把 k 从高位枚举到低位</td></tr>
+    <tr><td>朴素上跳</td><td>每次 <code>O(depth)</code>，链状树最坏 <code>O(n)</code></td><td><code>O(n)</code></td><td>无需预处理；大量深查询会被卡</td></tr>
+    <tr><td>DFS 序 + ST 表</td><td>预处理 <code>O(n log n)</code>，查询 <code>O(1)</code></td><td><code>O(n log n)</code></td><td>LCA 化为欧拉序上的 RMQ，可在线</td></tr>
     <tr><td>Tarjan 离线</td><td><code>O((n+q)·α(n))</code></td><td><code>O(n+q)</code></td><td>并查集；必须先知道全部询问，不支持在线</td></tr>
-    <tr><td>树上路径长度</td><td colspan="3">记 <code>dist[v]</code> 为根到 <code>v</code> 的边权 prefix 和，则 <code>len(u,v) = dist[u] + dist[v] − 2·dist[lca(u,v)]</code>；无权时即 <code>dep[u]+dep[v]−2·dep[lca]</code></td></tr>
+    <tr><td>树上两点距离</td><td colspan="3">记 <code>dist[v]</code> 为根到 <code>v</code> 的边权前缀和，则 <code>len(u,v) = dist[u] + dist[v] − 2·dist[lca(u,v)]</code>；无权时即 <code>dep[u] + dep[v] − 2·dep[lca]</code></td></tr>
   </tbody>
 </table>
 
 <h2>应用与局限</h2>
 
-<p><strong>应用</strong>：① <strong>树上路径查询 / 修改</strong>——树上差分（路径加权限统计）、树链剖分或 HLD 把路径拆成链，都需要 LCA 界定链端点；② <strong>两点距离、直径相关</strong>（配 <code>dist[]</code> 前缀和）；③ <strong>虚树</strong>：把关键结点按 DFS 序排序后求相邻 LCA，构造出只含关键信息与分叉的压缩树，是「关键点上的 DP」的标准降规模手段；④ 判定「<code>u</code> 是否是 <code>v</code> 的祖先」（<code>lca(u,v)=u</code>，或 DFS 序区间包含），求 <strong>k 级祖先</strong>、树上 jumping（倍增本身也是「跳跃指针」的一般技巧，如自动机、单调队列式的 <code>O(n log n)</code> 加速）；⑤ 网络/IP 路由树、语法分析树与 DOM 结构的最近共同祖先查询。</p>
+<p><strong>应用</strong>：① <strong>树上路径查询 / 修改</strong>——树上差分（路径加权、路径统计）、树链剖分把路径拆成链，都要先用 LCA 界定链端点；② <strong>两点距离、树的直径与中心</strong>（配 <code>dist[]</code> 前缀和）；③ <strong>虚树</strong>：把关键结点按 DFS 序排序后求相邻 LCA，压缩出只含关键信息与分叉的小树，是「关键点上的 DP」的标准降规模手段；④ 判定「<code>u</code> 是否是 <code>v</code> 的祖先」（<code>lca(u,v)=u</code> 或 DFS 序区间包含）、求 <strong>k 级祖先</strong>；⑤ 倍增本身是「跳跃指针」的一般技巧（自动机转移、<code>O(n log n)</code> 加速），也用于网络路由树、语法树 / DOM 的最近共同祖先查询。</p>
 
-<p><strong>局限</strong>：① 只对<strong>有根树</strong>定义，一般图上没有 LCA 概念（要先把图化成 DFS 树/生成树，答案与原图未必相符）；② 倍增表是 <code>O(n log n)</code> 空间，<code>n</code> 极大时可改用 <code>O(1)</code> 查询的 ±1RMQ 或 Bender-Farach 方案；③ 树是<strong>动态</strong>（有连边/断边）时倍增失效，需 LCT 或分块维护；④ 每次查询 <code>O(log n)</code>，若需要 <code>O(1)</code> 且离线，用 Tarjan；需要在线 <code>O(1)</code> 用欧拉序 + ST 表。</p>
+<p><strong>局限</strong>：① 只对<strong>有根树</strong>有定义，一般图上没有 LCA（要先化成 DFS 树 / 生成树，答案与原图未必相符）；② 倍增表是 <code>O(n log n)</code> 空间，<code>n</code> 极大时可换 <code>O(1)</code> 查询的 ±1RMQ 或 Bender–Farach 方案；③ 树是<strong>动态</strong>（有连边、断边）时倍增失效，需要 LCT 或分块维护；④ 单次查询 <code>O(log n)</code>，若要 <code>O(1)</code>：离线用 Tarjan，在线用欧拉序 + ST 表。</p>
 
 <div class="admonition info">
 <div class="admonition-title">参考</div>
-<p><a href="https://oi-wiki.org/graph/lca/" target="_blank" rel="noopener">OI Wiki — LCA（树上倍增 / 树链剖分 / Tarjan 离线 / RMQ）</a>；Introduction to Algorithms 思考题 17.3-2；同站相关页：<a href="../basic/binary-lifting.html">倍增</a> 与 <a href="../data-structure/bst.html">二叉搜索树</a>。</p>
+<p><a href="https://oi-wiki.org/graph/lca/" target="_blank" rel="noopener">OI Wiki — LCA（树上倍增 / 树链剖分 / Tarjan 离线 / RMQ）</a>；站内相关页：<a href="../basic/binary-lifting.html">倍增</a>、<a href="../data-structure/bst.html">二叉搜索树</a>。</p>
 </div>
 
 </main>
@@ -144,6 +148,7 @@ function lca(u, v):
 <script src="../assets/viz.js"></script>
 <script>
 (function () {
+  "use strict";
   var svgEl = document.getElementById("gsvg");
   var depEl = document.getElementById("depTbl");
   var faEl = document.getElementById("faTbl");
@@ -152,91 +157,80 @@ function lca(u, v):
   var runner = null;
   var steps = [];
 
-  var K = 3;                    // 行数 k = 0..3（树高 ≤ 4，2^3 = 8 已足够）
-  var W = 620, MX = 28, MY = 26, R = 17, DY = 54;
+  var K = 3;                                  // 倍增表行 k = 0..3（树高 ≤ 4，一次最多跳 8 级）
+  var W = 660, MX = 30, MY = 26, R = 17, DY = 56;
   var COL = {
     "default": "var(--viz-default)", "comparing": "var(--viz-comparing)", "swapping": "var(--viz-swapping)",
-    "active": "var(--viz-active)", "done": "var(--viz-done)", "eliminated": "var(--viz-eliminated)",
-    "todo": "var(--viz-default)"
+    "active": "var(--viz-active)", "done": "var(--viz-done)", "eliminated": "var(--viz-eliminated)", "todo": "var(--viz-default)"
   };
-  var tree = null;              // 当前树：{root, ids[], parent{}, kids{}, dep{}, x{}, y{}, edges[]}
-
-  function num(x) { return x < 0 ? "−" + (-x) : String(x); }
+  var tree = null;
 
   // ---------- 建树：随机二叉树形态 + 随机标号；x 由中序位置定、y 由深度定 ----------
   function genShape(n, maxDepth) {
-    var attempt;
+    var attempt, i, u, c, k, nodes, count;
     for (attempt = 0; attempt < 800; attempt++) {
-      var nodes = [{ p: -1, d: 0, kids: [] }];
-      var count = 1, i, c, k;
+      nodes = [{ p: -1, d: 0, kids: [] }];
+      count = 1;
       for (i = 0; i < nodes.length && count < n; i++) {
-        var u = nodes[i];
+        u = nodes[i];
         if (u.d + 1 > maxDepth) continue;
-        var remain = n - count;
-        c = SV.randInt(0, Math.min(2, remain));
-        if (c === 0 && remain > 0 && i + 1 >= nodes.length) { c = 0; }
+        c = SV.randInt(0, Math.min(2, n - count));
         for (k = 0; k < c; k++) {
           nodes.push({ p: i, d: u.d + 1, kids: [] });
-          nodes[i].kids.push(count + k);
+          u.kids.push(count + k);
         }
         count += c;
       }
       if (count !== n) continue;
-      var md = 0;
-      for (i = 0; i < n; i++) if (nodes[i].d > md) md = nodes[i].d;
-      var leaves = 0;
-      for (i = 0; i < n; i++) if (!nodes[i].kids.length) leaves++;
+      var md = 0, leaves = 0;
+      for (i = 0; i < n; i++) { if (nodes[i].d > md) md = nodes[i].d; if (!nodes[i].kids.length) leaves++; }
       if (md >= 3 && leaves >= 3) return nodes;
     }
-    // 兜底：完全二叉树形态
-    var t = [];
-    for (i = 0; i < n; i++) {
-      t.push({ p: i === 0 ? -1 : ((i - 1) >> 1), d: 0, kids: [] });
-    }
-    for (i = 0; i < n; i++) t[i].d = i === 0 ? 0 : t[t[i].p].d + 1;
+    return completeShape(n);                  // 兜底：完全二叉树形态
+  }
+
+  function completeShape(n) {
+    var t = [], i;
+    for (i = 0; i < n; i++) t.push({ p: i === 0 ? -1 : ((i - 1) >> 1), d: 0, kids: [] });
+    for (i = 1; i < n; i++) t[i].d = t[t[i].p].d + 1;
     for (i = 1; i < n; i++) t[t[i].p].kids.push(i);
     return t;
   }
 
   function buildTree(nodes, labels) {
-    var n = nodes.length, i, t = { root: labels[0], ids: [], parent: {}, kidsL: {}, kidsR: {}, dep: {} };
-    for (i = 0; i < n; i++) t.ids.push(labels[i]);
+    var n = nodes.length, i;
+    var t = { root: labels[0], ids: [], parent: {}, kidsL: {}, kidsR: {}, dep: {} };
     for (i = 0; i < n; i++) {
       var lab = labels[i];
+      t.ids.push(lab);
       t.parent[lab] = nodes[i].p < 0 ? 0 : labels[nodes[i].p];
       t.dep[lab] = nodes[i].d;
       t.kidsL[lab] = nodes[i].kids.length > 0 ? labels[nodes[i].kids[0]] : 0;
       t.kidsR[lab] = nodes[i].kids.length > 1 ? labels[nodes[i].kids[1]] : 0;
     }
     t.ids.sort(function (a, b) { return a - b; });
-    // 中序位置定 x、深度定 y
-    var order = [], cnt = 0;
+    // 中序位置 → x，深度 → y：同层结点的中序槽位至少差 1，间距 (W-2(MX+R))/n ≥ 51px > 2R = 34px，故不重叠
+    var slot = {}, cnt = 0;
     (function ino(idx) {
-      var lab = labels[idx];
       var l = nodes[idx].kids.length > 0 ? nodes[idx].kids[0] : -1;
       var r = nodes[idx].kids.length > 1 ? nodes[idx].kids[1] : -1;
       if (l >= 0) ino(l);
-      t["__x_" + lab] = cnt;
-      order.push(lab);
-      cnt++;
+      slot[labels[idx]] = cnt++;
       if (r >= 0) ino(r);
     })(0);
-    var innerW = W - 2 * (MX + R);
-    t.x = {}; t.y = {};
-    var md = 0;
+    var innerW = W - 2 * (MX + R), md = 0;
     for (i = 0; i < n; i++) if (t.dep[t.ids[i]] > md) md = t.dep[t.ids[i]];
+    t.x = {}; t.y = {};
     for (i = 0; i < n; i++) {
       var v = t.ids[i];
-      var slot = t["__x_" + v];
-      t.x[v] = MX + R + (slot + 0.5) * innerW / n;
+      t.x[v] = MX + R + (slot[v] + 0.5) * innerW / n;
       t.y[v] = MY + R + t.dep[v] * DY;
     }
     t.h = MY * 2 + R * 2 + md * DY;
     t.edges = [];
     for (i = 0; i < n; i++) {
-      var lb = labels[i];
-      var p = t.parent[lb];
-      if (p !== 0) t.edges.push({ a: p, b: lb });
+      var p = t.parent[labels[i]];
+      if (p !== 0) t.edges.push({ a: p, b: labels[i] });
     }
     t.n = n;
     t.maxDep = md;
@@ -245,371 +239,372 @@ function lca(u, v):
 
   function genTree() {
     var n = SV.randInt(8, 11);
-    var labels = SV.randPermutation(n, 1, n);
-    return buildTree(genShape(n, 4), labels);
+    return buildTree(genShape(n, 4), SV.randPermutation(n, 1, n));
   }
 
   function defaultTree() {
-    // 固定示例树：1 为根；结构 1→(2,3), 2→(4,5), 4→(7,8), 5→(9,10), 3→(6,11)
-    // slots 以父结点索引 + 左右孩子描述
+    // 固定示例树：1 为根，1→(2,3)，2→(4,5)，3→(6,11)，4→(7,8)，5→(9,10)；LCA(10,7) = 2
     var defs = { 1: [2, 3], 2: [4, 5], 3: [6, 11], 4: [7, 8], 5: [9, 10] };
-    var orderIds = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
-    var nodes = [], idx = {}, i;
-    for (i = 0; i < orderIds.length; i++) { idx[orderIds[i]] = i; nodes.push({ p: -1, d: 0, kids: [] }); }
-    for (i = 0; i < orderIds.length; i++) {
-      var lab = orderIds[i], kd = defs[lab] || [];
-      nodes[i].kids = [];
-      for (var k = 0; k < kd.length; k++) {
+    var order = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+    var nodes = [], idx = {}, i, k;
+    for (i = 0; i < order.length; i++) { idx[order[i]] = i; nodes.push({ p: -1, d: 0, kids: [] }); }
+    for (i = 0; i < order.length; i++) {
+      var kd = defs[order[i]] || [];
+      for (k = 0; k < kd.length; k++) {
         var ci = idx[kd[k]];
+        if (ci === undefined) continue;
         nodes[i].kids.push(ci);
         nodes[ci].p = i;
       }
     }
     for (i = 0; i < nodes.length; i++) nodes[i].d = nodes[i].p < 0 ? 0 : nodes[nodes[i].p].d + 1;
-    return buildTree(nodes, orderIds.slice());
+    return buildTree(nodes, order.slice());
   }
 
+  // ---------- 倍增表与祖先链 ----------
   function faTable(t) {
-    var fa = [], v, k, i;
+    var fa = [], k, i, v, mid;
     for (k = 0; k <= K; k++) { fa[k] = {}; for (i = 0; i < t.ids.length; i++) fa[k][t.ids[i]] = 0; }
     for (i = 0; i < t.ids.length; i++) { v = t.ids[i]; fa[0][v] = t.parent[v]; }
     for (k = 1; k <= K; k++) {
       for (i = 0; i < t.ids.length; i++) {
         v = t.ids[i];
-        var mid = fa[k - 1][v];
+        mid = fa[k - 1][v];
         fa[k][v] = mid === 0 ? 0 : fa[k - 1][mid];
       }
     }
     return fa;
   }
   function pow2(k) { return 1 << k; }
-
   function ancChain(t, v) {
     var a = [], cur = v, guard = 0;
-    while (cur !== 0 && guard++ <= t.n + 2) { a.push(cur); cur = t.parent[cur]; }
+    while (cur !== 0 && cur !== undefined && guard++ <= t.n + 2) { a.push(cur); cur = t.parent[cur]; }
     return a;
+  }
+  // 树上 x→y 的真实路径：x 上溯到 LCA，再从 LCA 下降到 y
+  function treePath(t, x, y, lca) {
+    var ax = ancChain(t, x), ay = ancChain(t, y);
+    var ix = ax.indexOf(lca), iy = ay.indexOf(lca);
+    if (ix < 0 || iy < 0) return null;
+    var up = ax.slice(0, ix + 1);                       // x ... lca
+    var down = ay.slice(0, iy).reverse();               // lca 的孩子 ... y
+    return up.concat(down);
   }
 
   // ---------- 步骤构建 ----------
-  function buildSteps(t, uq, vq) {
+  function buildSteps(t, uRaw, vRaw) {
     tree = t;
-    var out = [];
-    var ids = t.ids, n = t.n;
-    var fa = faTable(t);
-    var filled = [], k, i;      // filled[k][v]
-    for (k = 0; k <= K; k++) { filled[k] = {}; for (i = 0; i < n; i++) filled[k][ids[i]] = false; }
-    var nst = {}, est = [], fst = [], depSt = {};
-    for (i = 0; i < n; i++) { nst[ids[i]] = "default"; depSt[ids[i]] = "default"; }
+    var ids = t.ids, n = t.n, fa = faTable(t), out = [];
+    var uq = ids.indexOf(uRaw) >= 0 ? uRaw : ids[0];
+    var vq = ids.indexOf(vRaw) >= 0 ? vRaw : ids[n - 1];
+    var filled = [], fst = [], nst = {}, depSt = {}, est = [];
+    var k, i, a, b;
+    for (k = 0; k <= K; k++) { filled[k] = {}; fst[k] = {}; }
+    for (i = 0; i < n; i++) {
+      nst[ids[i]] = "default"; depSt[ids[i]] = "default";
+      for (k = 0; k <= K; k++) { filled[k][ids[i]] = false; fst[k][ids[i]] = "todo"; }
+    }
     for (i = 0; i < t.edges.length; i++) est.push("default");
-    for (k = 0; k <= K; k++) { fst[k] = {}; for (i = 0; i < n; i++) fst[k][ids[i]] = "todo"; }
-    var cur = { u: 0, v: 0, lca: 0, note: "" };
 
     function snap(msg) {
-      var sn = {}, se = [], sf = [], ff = [], a, b;
+      var sn = {}, se = [], sf = [], sfl = [], fv = [], dp = {};
       for (a = 0; a < n; a++) sn[ids[a]] = nst[ids[a]];
-      for (a = 0; a < t.edges.length; a++) se[a] = est[a];
+      for (a = 0; a < est.length; a++) se[a] = est[a];
       for (a = 0; a <= K; a++) {
-        sf[a] = []; ff[a] = [];
-        for (b = 0; b < n; b++) { sf[a].push(fst[a][ids[b]]); ff[a].push(filled[a][ids[b]] ? fa[a][ids[b]] : 0); }
+        sf[a] = []; sfl[a] = []; fv[a] = [];
+        for (b = 0; b < n; b++) {
+          sf[a].push(fst[a][ids[b]]);
+          sfl[a].push(!!filled[a][ids[b]]);
+          fv[a].push(fa[a][ids[b]]);
+        }
       }
-      var dp = {};
       for (a = 0; a < n; a++) dp[ids[a]] = depSt[ids[a]];
       out.push({
-        ids: ids.slice(), nst: sn, est: se, fst: sf, ff: ff, depSt: dp,
-        filled: (function () { var r = []; for (var a2 = 0; a2 <= K; a2++) r.push(ids.map(function (v2) { return !!filled[a2][v2]; })); return r; })(),
-        dep: (function () { var r = {}; for (var a2 = 0; a2 < n; a2++) r[ids[a2]] = t.dep[ids[a2]]; return r; })(),
-        par: (function () { var r = {}; for (var a2 = 0; a2 < n; a2++) r[ids[a2]] = t.parent[ids[a2]]; return r; })(),
-        faVal: (function () { var r = []; for (var a2 = 0; a2 <= K; a2++) r.push(ids.map(function (v2) { return fa[a2][v2]; })); return r; })(),
-        edges: (function () { return t.edges.map(function (e2) { return [e2.a, e2.b]; }); })(),
-        root: t.root, cur: { u: cur.u, v: cur.v, lca: cur.lca },
-        q: [uq, vq], msg: msg
+        ids: ids.slice(), nst: sn, est: se, fst: sf, filled: sfl, faVal: fv, depSt: dp,
+        dep: t.dep, par: t.parent, kl: t.kidsL, kr: t.kidsR,
+        edges: t.edges, root: t.root, q: [uq, vq], msg: msg
       });
     }
 
-    function resetNodes() { for (var a = 0; a < n; a++) { nst[ids[a]] = "default"; depSt[ids[a]] = "default"; } }
-    function resetCells() { for (var a = 0; a <= K; a++) for (var b = 0; b < n; b++) fst[a][ids[b]] = "todo"; }
-    function resetEdges() { for (var a = 0; a < t.edges.length; a++) est[a] = "default"; }
+    function base() {
+      for (var a2 = 0; a2 < n; a2++) { nst[ids[a2]] = "default"; depSt[ids[a2]] = "default"; }
+      for (var e2 = 0; e2 < est.length; e2++) est[e2] = "default";
+      for (var k2 = 0; k2 <= K; k2++) for (var b2 = 0; b2 < n; b2++) fst[k2][ids[b2]] = filled[k2][ids[b2]] ? "done" : "todo";
+    }
     function edgeIdx(p, c) {
-      for (var a = 0; a < t.edges.length; a++) {
-        if ((t.edges[a].a === p && t.edges[a].b === c) || (t.edges[a].b === p && t.edges[a].a === c)) return a;
+      if (p === 0 || c === 0) return -1;
+      for (var a2 = 0; a2 < t.edges.length; a2++) {
+        var e = t.edges[a2];
+        if ((e.a === p && e.b === c) || (e.b === p && e.a === c)) return a2;
       }
       return -1;
     }
-    function faStr(k2, v2) { return filled[k2][v2] ? (fa[k2][v2] === 0 ? "—" : String(fa[k2][v2])) : "·"; }
-
-    // ---- 基态 ----
-    resetNodes(); resetCells(); resetEdges();
-    var chainTxt = [];
-    for (i = 0; i < n; i++) {
-      if (t.dep[ids[i]] === 0) chainTxt.push("根 = " + ids[i]);
+    // 给 x 到根的链染色；与已经染过色的边重合的部分改染 jointSt（两条路径已汇合）
+    function colorChain(x, st, jointSt) {
+      var cur = x, guard = 0, joined = false;
+      while (guard++ <= n + 2) {
+        var p = t.parent[cur];
+        if (p === 0) break;
+        var ei = edgeIdx(p, cur);
+        if (ei >= 0) {
+          if (!joined && est[ei] === "default") est[ei] = st;
+          else joined = true;
+          if (joined) est[ei] = jointSt;
+        }
+        cur = p;
+      }
     }
-    snap("有根二叉树：" + n + " 个结点，" + chainTxt.join("，") + "，最大深度 " + t.maxDep + "。" +
-      "左侧按「中序位置定 x、深度定 y」摆放，故同层结点必不重叠。右侧 dep[] 已给出，倍增表 fa[k][v] 全部待填（· = 未填，— = 祖先不存在）。" +
-      "本次将先逐格填表（阶段 A），再查询 LCA(u=" + uq + ", v=" + vq + ")（阶段 B）。");
+    function paintPaths(x, y) {
+      base();
+      colorChain(x, "active", "active");
+      colorChain(y, "comparing", "done");
+      nst[x] = "active"; nst[y] = "comparing";
+      depSt[x] = "active"; depSt[y] = "comparing";
+      return { ca: ancChain(t, x), cb: ancChain(t, y) };
+    }
+    // from 上跳到祖先 to：沿途经过的边染色
+    function colorJump(from, to, st) {
+      var cur = from, guard = 0;
+      while (cur !== to && guard++ <= n + 2) {
+        var p = t.parent[cur];
+        if (p === 0) break;
+        var ei = edgeIdx(p, cur);
+        if (ei >= 0) est[ei] = st;
+        cur = p;
+      }
+    }
+    function cellList(k2, list) {
+      var r = [];
+      for (var a2 = 0; a2 < list.length; a2++) r.push("fa[" + k2 + "][" + list[a2] + "]");
+      return r.join("、");
+    }
+    function faStr(k2, v2) { return filled[k2][v2] ? (fa[k2][v2] === 0 ? "—" : String(fa[k2][v2])) : "·"; }
+    function rowStr(k2) {
+      var r = [];
+      for (var a2 = 0; a2 < n; a2++) r.push(faStr(k2, ids[a2]));
+      return r.join(" ");
+    }
 
-    // ---- 阶段 A：逐格填 fa[k][v] ----
+    // ---------- 基态 ----------
+    base();
+    snap("有根树共 " + n + " 个结点，根 = " + t.root + "（dep=0），最大深度 " + t.maxDep +
+      "。结点按「中序位置定 x、深度定 y」摆放，同层结点必然左右分开、互不重叠。" +
+      "右侧 dep[] 表已给出深度与父结点，倍增表 fa[k][v] 里 · 表示还没填、— 表示祖先不存在。" +
+      "阶段 A 先逐格填表，阶段 B 再查询 LCA(u=" + uq + ", v=" + vq + ")。");
+
+    // ---------- 阶段 A：逐格填 fa[k][v] ----------
     for (k = 0; k <= K; k++) {
       var merged = [];
       for (i = 0; i < n; i++) {
         var v = ids[i];
         var mid = k === 0 ? 0 : fa[k - 1][v];
         if (k >= 1 && mid === 0) {
-          // 上一层已是 —，本层必然也是 —：合并成一步说明
+          // 上一层这一格已经是 —：再往上 2^(k-1) 级同样不存在，合并成一步说明
           filled[k][v] = true;
           merged.push(v);
           continue;
         }
         if (merged.length) {
-          resetNodes(); resetCells();
-          for (var a2 = 0; a2 <= K; a2++) for (var b2 = 0; b2 < n; b2++) if (filled[a2][ids[b2]]) fst[a2][ids[b2]] = "done";
-          for (a2 = 0; a2 < merged.length; a2++) fst[k][merged[a2]] = "eliminated";
-          snap("<b>合并 " + merged.length + " 格</b>：结点 " + merged.join("、") + " 的 fa[" + (k - 1) + "][·] 已是 —（再往上 2^" +
-            (k - 1) + " 级不存在），故 fa[" + k + "][" + merged.join("]=") + "]… 也全部 = <b>—</b>（灰）。");
+          base();
+          for (a = 0; a < merged.length; a++) fst[k][merged[a]] = "eliminated";
+          snap("<b>合并 " + merged.length + " 格</b>：" + cellList(k, merged) + " 全 = <b>—</b>（灰）。" +
+            "因为 " + cellList(k - 1, merged) + " 已经是 —，即向上 2^" + (k - 1) + " 级就越过了根，再跳 2^" + (k - 1) + " 级当然也不存在。");
           merged = [];
         }
-        resetNodes(); resetCells();
-        for (a2 = 0; a2 <= K; a2++) for (b2 = 0; b2 < n; b2++) if (filled[a2][ids[b2]]) fst[a2][ids[b2]] = "done";
-        var val;
-        var msg;
+        base();
+        var val, msg;
         if (k === 0) {
           val = t.parent[v];
           filled[0][v] = true;
-          fst[0][v] = val === 0 ? "eliminated" : "done";
-          nst[v] = "comparing";
+          fst[0][v] = val === 0 ? "eliminated" : "comparing";
+          nst[v] = "comparing"; depSt[v] = "active";
           if (val === 0) {
             msg = "<b>第 0 行</b> fa[0][" + v + "] = <b>—</b>：" + v + " 是根结点，没有父结点（灰＝不存在）。";
           } else {
-            nst[val] = "active";
-            var ei = edgeIdx(val, v);
-            if (ei >= 0) est[ei] = "active";
-            msg = "<b>第 0 行</b> fa[0][" + v + "] = <b>" + val + "</b>：" + val + " 就是 " + v + " 的直接父结点（蓝＝来源，橙＝正在填的格）。";
+            var ei0 = edgeIdx(val, v);
+            if (ei0 >= 0) est[ei0] = "active";
+            nst[val] = "active"; depSt[val] = "active"; fst[0][val] = "active";
+            msg = "<b>第 0 行</b> fa[0][" + v + "] = <b>" + val + "</b>：按定义 fa[0][v] = parent(v)，" +
+              val + " 就是 " + v + " 的直接父结点（蓝＝来源，橙＝本步填的格）。";
           }
         } else {
           val = fa[k][v];
           filled[k][v] = true;
-          fst[k][v] = val === 0 ? "eliminated" : "done";
+          fst[k][v] = val === 0 ? "eliminated" : "comparing";
           fst[k - 1][v] = "active";
-          nst[v] = "comparing";
+          nst[v] = "comparing"; depSt[v] = "active";
           msg = "<b>第 " + k + " 行</b> fa[" + k + "][" + v + "] = fa[" + (k - 1) + "][ fa[" + (k - 1) + "][" + v + "] ] = fa[" +
             (k - 1) + "][" + mid + "] = <b>" + (val === 0 ? "—" : val) + "</b>：从 " + v + " 先跳 2^" + (k - 1) + "=" + pow2(k - 1) +
-            " 级到 " + mid + "，再跳 " + pow2(k - 1) + " 级";
-          if (val === 0) msg += "——" + mid + " 之上已不足 2^" + (k - 1) + " 级，故记为 —（灰）。";
-          else {
+            " 级到 " + mid + "，再从那里跳 2^" + (k - 1) + " 级";
+          if (val === 0) {
+            msg += " —— " + mid + " 之上已不足 2^" + (k - 1) + " 级（fa[" + (k - 1) + "][" + mid + "] = —），故记为 —（灰）。";
+          } else {
             fst[k - 1][mid] = "active";
-            nst[mid] = "active";
-            msg += "到 " + val + "，合计跳 2^" + k + "=" + pow2(k) + " 级（蓝＝两处来源格）。";
+            nst[mid] = "active"; depSt[mid] = "active";
+            msg += " 到 <b>" + val + "</b>，合计跳 2^" + k + "=" + pow2(k) + " 级（蓝＝两处来源格）。";
           }
         }
-        depSt[v] = "active";
         snap(msg);
       }
       if (merged.length) {
-        resetNodes(); resetCells();
-        for (a2 = 0; a2 <= K; a2++) for (b2 = 0; b2 < n; b2++) if (filled[a2][ids[b2]]) fst[a2][ids[b2]] = "done";
-        for (a2 = 0; a2 < merged.length; a2++) fst[k][merged[a2]] = "eliminated";
-        snap("<b>合并 " + merged.length + " 格</b>：结点 " + merged.join("、") + " 的 fa[" + (k - 1) + "][·] 已是 —，故 fa[" + k +
-          "] 行对应的这些格 = <b>—</b>（灰）。");
+        base();
+        for (a = 0; a < merged.length; a++) fst[k][merged[a]] = "eliminated";
+        snap("<b>合并 " + merged.length + " 格</b>：" + cellList(k, merged) + " 全 = <b>—</b>（灰），因为对应的 " +
+          cellList(k - 1, merged) + " 已经是 —。");
         merged = [];
       }
-      resetNodes(); resetCells();
-      for (a2 = 0; a2 <= K; a2++) for (b2 = 0; b2 < n; b2++) if (filled[a2][ids[b2]]) fst[a2][ids[b2]] = "done";
+      base();
       var cntVal = 0, cntEmpty = 0;
-      for (b2 = 0; b2 < n; b2++) { if (fa[k][ids[b2]] === 0) cntEmpty++; else cntVal++; }
-      snap("第 " + k + " 行填完：2^" + k + "=" + pow2(k) + " 级祖先一行共 " + n + " 格，其中 " + cntVal +
-        " 格有值、" + cntEmpty + " 格为 —。当前表：k=0 行 [" + ids.map(function (x) { return faStr(0, x); }).join(" ") + "]" +
-        (k >= 1 ? "，k=" + k + " 行 [" + ids.map(function (x) { return faStr(k, x); }).join(" ") + "]" : ""));
+      for (i = 0; i < n; i++) { if (fa[k][ids[i]] === 0) cntEmpty++; else cntVal++; }
+      snap("<b>第 " + k + " 行填完</b>（2^" + k + "=" + pow2(k) + " 级祖先）：" + n + " 格中 " + cntVal + " 格有值、" +
+        cntEmpty + " 格为 —。按结点 " + ids.join(" ") + " 的顺序本行为 [" + rowStr(k) + "]。" +
+        "第 " + (k + 1) + " 行只依赖第 " + k + " 行，所以两层循环必须外层枚举 k、内层枚举 v。");
     }
-    var totalCells = (K + 1) * n;
-    snap("阶段 A 完成 ✅ 倍增表填好（" + totalCells + " 格，绿＝已填、灰＝—）。递推式 <b>fa[k][v]=fa[k-1][ fa[k-1][v] ]</b> 只依赖上一行，" +
-      "预处理 O(n log n) = " + n + "×" + (K + 1) + "。下面进入阶段 B：查询 LCA(u=" + uq + ", v=" + vq + ")。");
+    base();
+    snap("阶段 A 完成 ✅ 倍增表填满：共 (K+1)×n = " + (K + 1) + "×" + n + " = " + (K + 1) * n +
+      " 格（绿＝有值、灰＝—），时间与空间都是 O(n log n)。递推式 fa[k][v] = fa[k-1][ fa[k-1][v] ]。" +
+      "下面进入阶段 B：查询 LCA(u=" + uq + ", v=" + vq + ")。");
 
-    // ---- 阶段 B：查询 ----
-    function showPaths(a, b) {
-      resetNodes(); resetCells(); resetEdges();
-      for (var a3 = 0; a3 <= K; a3++) for (var b3 = 0; b3 < n; b3++) if (filled[a3][ids[b3]]) fst[a3][ids[b3]] = "done";
-      var ca = ancChain(t, a), cb = ancChain(t, b);
-      for (var i2 = 0; i2 < ca.length - 1; i2++) {
-        var e1 = edgeIdx(ca[i2], ca[i2 + 1]);
-        if (e1 >= 0) est[e1] = "active";
-      }
-      for (i2 = 0; i2 < cb.length - 1; i2++) {
-        var e2 = edgeIdx(cb[i2], cb[i2 + 1]);
-        if (e2 >= 0 && est[e2] === "active") est[e2] = "done";
-        else if (e2 >= 0) est[e2] = "comparing";
-      }
-      for (i2 = 0; i2 < ca.length; i2++) nst[ca[i2]] = "default";
-      return { ca: ca, cb: cb };
-    }
+    // ---------- 阶段 B：查询 ----------
+    var ch = paintPaths(uq, vq);
+    snap("<b>阶段 B</b>：查询 LCA(" + uq + ", " + vq + ")。dep[" + uq + "]=" + t.dep[uq] + "，dep[" + vq + "]=" + t.dep[vq] +
+      "。标出两条到根的路径：<b>" + ch.ca.join("→") + "</b>（u 侧，蓝）与 <b>" + ch.cb.join("→") + "</b>（v 侧，橙）。" +
+      "两条路径一旦汇合就完全重合（重合的边显示为绿），所以「第一次汇合的结点」就是最深的公共祖先。");
 
-    if (ids.indexOf(uq) < 0 || ids.indexOf(vq) < 0) {
-      snap("⚠ 选定的 u=" + uq + " 或 v=" + vq + " 不在新树上（已自动重选）。");
+    if (uq === vq) {
+      var cs = paintPaths(uq, vq);
+      nst[uq] = "done"; depSt[uq] = "done";
+      snap("<b>结论</b>：u = v = " + uq + "。约定每个结点是它自己的祖先，两条到根的路径完全重合 ⇒ <b>LCA(" + uq + ", " + vq +
+        ") = " + uq + "</b> ✅（祖先链 " + cs.ca.join("→") + "，深度差 0，无需任何上跳；树上距离 = " + t.dep[uq] + " + " + t.dep[vq] +
+        " − 2×" + t.dep[uq] + " = 0 条边，路径退化为单点 " + uq + "）。");
       return out;
     }
-    var ch = showPaths(uq, vq);
-    cur.u = uq; cur.v = vq; cur.lca = 0;
-    snap("<b>阶段 B</b>：查询 LCA(u=" + uq + ", v=" + vq + ")。dep[" + uq + "]=" + t.dep[uq] + "，dep[" + vq + "]=" + t.dep[vq] +
-      "。淡色标出两条到根的路径：<b>" + ch.ca.join("→") + "</b>（u 侧，蓝边）与 <b>" + ch.cb.join("→") + "</b>（v 侧，橙边）；" +
-      "两条路径一旦汇合就完全重合，所以「第一次汇合的点」就是 LCA。");
 
     var a1 = uq, b1 = vq;
     if (t.dep[a1] < t.dep[b1]) {
       var tmp = a1; a1 = b1; b1 = tmp;
-      resetNodes(); resetCells(); resetEdges();
-      showPaths(a1, b1);
-      nst[a1] = "active"; nst[b1] = "comparing";
-      cur.u = a1; cur.v = b1;
-      snap("dep[u]=" + t.dep[uq] + " &lt; dep[v]=" + t.dep[vq] + "，<b>交换两者</b>：让较深的点（现在是 " + a1 + "，深度 " +
-        t.dep[a1] + "）先上跳对齐深度。LCA 对 (u,v) 对称，交换不改变答案。此后记较深的为 u=" + a1 + "、较浅的为 v=" + b1 + "。");
+      paintPaths(a1, b1);
+      snap("<b>交换</b>：dep[u=" + uq + "]=" + t.dep[uq] + " &lt; dep[v=" + vq + "]=" + t.dep[vq] +
+        "，把两者对调，让较深的点先上跳。LCA 对 (u,v) 对称，交换不改变答案；此后记较深的为 u=" + a1 + "（蓝）、较浅的为 v=" + b1 + "（橙）。");
+    } else {
+      paintPaths(a1, b1);
     }
-    resetNodes(); resetCells(); resetEdges();
-    showPaths(a1, b1);
-    nst[a1] = "active"; nst[b1] = "comparing";
-    cur.u = a1; cur.v = b1;
 
     var diff = t.dep[a1] - t.dep[b1];
     if (diff > 0) {
       var bits = [];
-      for (k = K; k >= 0; k--) if (diff & pow2(k)) bits.push("2^" + k);
-      snap("<b>① 深度对齐</b>：dep[u]=" + t.dep[a1] + " &gt; dep[v]=" + t.dep[b1] + "，深度差 = " + diff + " = " +
-        (bits.length ? bits.join(" + ") : "0") + "。从高位到低位枚举 k，凡 <code>diff</code> 的第 k 位为 1 就让 u 上跳 2^k 级。");
+      for (k = K; k >= 0; k--) if (diff & pow2(k)) bits.push("2^" + k + "=" + pow2(k));
+      snap("<b>① 深度对齐</b>：深度差 diff = dep[" + a1 + "] − dep[" + b1 + "] = " + t.dep[a1] + " − " + t.dep[b1] + " = " +
+        diff + " = " + bits.join(" + ") + "。从高位到低位枚举 k，只要 diff 的第 k 位是 1，就令 u = fa[k][u]，一次上跳 2^k 级。");
       for (k = K; k >= 0; k--) {
         if (!(diff & pow2(k))) continue;
-        var from = a1, steps2 = pow2(k);
-        var passed = [a1];
-        for (i = 0; i < steps2; i++) a1 = fa[Math.min(k, K)] && false ? 0 : a1; // 占位，避免误用
-        a1 = jumpBy(t, fa, from, k);
-        resetNodes(); resetCells(); resetEdges();
-        showPaths(a1, b1);
-        for (i = 0; i < passed.length; i++) { /* 已在 showPaths 中淡化 */ }
-        markJump(from, a1, "active");
-        nst[from] = "eliminated"; nst[a1] = "active"; nst[b1] = "comparing";
-        cur.u = a1; cur.v = b1;
-        snap("<b>① 跳 2^" + k + "=" + steps2 + " 级</b>：u 从 " + from + " 上跳到 <b>" + a1 + "</b>（沿蓝边一次跨过多层），" +
-          "dep[" + a1 + "]=" + t.dep[a1] + "。剩余待补深度差 " + (t.dep[a1] > t.dep[b1] ? t.dep[a1] - t.dep[b1] : 0) + "。");
+        var from = a1;
+        a1 = fa[k][a1];
+        if (a1 === 0) a1 = from;              // 防御：diff ≤ dep[u]，理论上不会越过根
+        paintPaths(a1, b1);
+        colorJump(from, a1, "swapping");
+        nst[from] = "eliminated"; nst[a1] = "swapping"; depSt[a1] = "swapping";
+        nst[b1] = "comparing"; depSt[b1] = "comparing";
+        fst[k][from] = "active";
+        snap("<b>① 跳 2^" + k + "=" + pow2(k) + " 级</b>：fa[" + k + "][" + from + "] = " + a1 +
+          " ⇒ u 从 <b>" + from + "</b> 上跳到 <b>" + a1 + "</b>（沿红色边一次跨过 " + pow2(k) + " 层，dep=" + t.dep[a1] + "，灰＝跳过的旧位置）。" +
+          "现在 dep[u]=" + t.dep[a1] + "、dep[v]=" + t.dep[b1] + "，剩余深度差 " + Math.max(0, t.dep[a1] - t.dep[b1]) + "。");
       }
-    } else if (diff === 0) {
-      snap("<b>① 深度对齐</b>：dep[u]=dep[v]=" + t.dep[b1] + "，深度已相同，无需上跳，直接进入同步上跳阶段。");
+    } else {
+      snap("<b>① 深度对齐</b>：dep[u] = dep[v] = " + t.dep[b1] + "，本来就同深，无需上跳，直接进入同步上跳。");
     }
 
     if (a1 === b1) {
-      resetNodes(); resetCells(); resetEdges();
-      showPaths(a1, b1);
-      markPathTo(a1);
-      nst[a1] = "done";
-      cur.lca = a1; cur.u = a1; cur.v = b1;
-      snap("对齐后 u 与 v <b>落在同一个结点 " + a1 + "</b> ⇒ 原来的 u 是 v 的祖先，<b>LCA(" + uq + ", " + vq + ") = " + a1 +
-        "</b> ✅（u 的祖先链：" + ancChain(t, uq).join("→") + "；v 的祖先链：" + ancChain(t, vq).join("→") + "）。");
+      paintPaths(a1, b1);
+      nst[a1] = "done"; depSt[a1] = "done";
+      var pa1 = treePath(t, uq, vq, a1);
+      snap("<b>结论</b>：对齐深度后 u 与 v 落在同一个结点 <b>" + a1 + "</b> ⇒ 原来的 " + uq + " 本身就是 " + vq + " 的祖先，" +
+        "<b>LCA(" + uq + ", " + vq + ") = " + a1 + "</b> ✅（深度差恰好把 u 抬到了 v 那一层）。" +
+        "祖先链：" + ancChain(t, uq).join("→") + " 与 " + ancChain(t, vq).join("→") + "，dep[" + a1 + "]=" + t.dep[a1] +
+        "；树上距离 = " + t.dep[uq] + " + " + t.dep[vq] + " − 2×" + t.dep[a1] + " = " + (t.dep[uq] + t.dep[vq] - 2 * t.dep[a1]) +
+        " 条边，路径 " + (pa1 ? pa1.join("→") : "（找不到）") + "。");
       return out;
     }
 
-    resetNodes(); resetCells(); resetEdges();
-    showPaths(a1, b1);
-    nst[a1] = "active"; nst[b1] = "comparing";
-    snap("<b>② 同步上跳</b>：现在 dep[u]=dep[v]=" + t.dep[a1] + " 且 u≠v。从高位到低位枚举 k，<b>只在 fa[k][u] ≠ fa[k][v] 时</b>一起上跳——相等说明可能已经够到或越过 LCA，必须保留。");
+    paintPaths(a1, b1);
+    snap("<b>② 同步上跳</b>：现在 dep[u] = dep[v] = " + t.dep[a1] + " 且 u ≠ v。仍从高位到低位枚举 k，<b>只在 fa[k][u] ≠ fa[k][v] 时</b>一起上跳：" +
+      "不等说明 2^k 级还没够到 LCA，跳上去不会越过它；相等（或同为 —）说明可能已经到达甚至越过，必须保留，改用更小的 k。");
     for (k = K; k >= 0; k--) {
       var fu = fa[k][a1], fv = fa[k][b1];
       if (fu !== fv) {
         var pa = a1, pb = b1;
         a1 = fu; b1 = fv;
-        resetNodes(); resetCells(); resetEdges();
-        showPaths(a1, b1);
-        markJump(pa, a1, "active"); markJump(pb, b1, "comparing");
+        paintPaths(a1, b1);
+        colorJump(pa, a1, "swapping"); colorJump(pb, b1, "swapping");
         nst[pa] = "eliminated"; nst[pb] = "eliminated";
-        nst[a1] = "active"; nst[b1] = "comparing";
-        cur.u = a1; cur.v = b1;
-        snap("<b>k=" + k + "：fa[" + k + "][" + pa + "]=" + (fu === 0 ? "—" : fu) + " ≠ fa[" + k + "][" + pb + "]=" + (fv === 0 ? "—" : fv) +
+        nst[a1] = "swapping"; nst[b1] = "swapping";
+        depSt[a1] = "swapping"; depSt[b1] = "swapping";
+        fst[k][pa] = "active"; fst[k][pb] = "active";
+        snap("<b>k=" + k + "：fa[" + k + "][" + pa + "]=" + fu + " ≠ fa[" + k + "][" + pb + "]=" + fv +
           "</b> ⇒ 还够不到 LCA，两者一起上跳 2^" + k + "=" + pow2(k) + " 级：u " + pa + "→<b>" + a1 + "</b>，v " + pb + "→<b>" + b1 +
-          "</b>。（同步上跳时两点同深，故要么同为 —、要么同时存在，不会出现一边越界。）");
+          "</b>（红＝新位置，两者仍同深 dep=" + t.dep[a1] + "）。同步上跳时两点同深，所以要么都有值、要么同为 —，不会一边越界。");
       } else {
-        resetNodes(); resetCells(); resetEdges();
-        showPaths(a1, b1);
-        nst[a1] = "active"; nst[b1] = "comparing";
-        if (fu !== 0) { nst[fu] = "comparing"; }
-        cur.u = a1; cur.v = b1;
-        snap("k=" + k + "：fa[" + k + "][" + a1 + "]" + (fu === 0 ? " 与 fa[" + k + "][" + b1 + "] 同为 —"
-          : " = " + fu + " = fa[" + k + "][" + b1 + "]") + " ⇒ <b>相等（或都不存在），不跳</b>，继续试更小的 k。");
+        paintPaths(a1, b1);
+        fst[k][a1] = "active"; fst[k][b1] = "active";
+        snap("<b>k=" + k + "：</b>" + (fu === 0
+          ? "fa[" + k + "][" + a1 + "] 与 fa[" + k + "][" + b1 + "] <b>同为 —</b>（向上 2^" + k + " 级越过根）"
+          : "fa[" + k + "][" + a1 + "] = " + fu + " = fa[" + k + "][" + b1 + "]，<b>相等</b>") +
+          " ⇒ <b>不跳</b>（一跳就够到甚至越过 LCA），继续试更小的 k。此时 u=" + a1 + "、v=" + b1 + " 保持不变。");
       }
     }
     var lca = t.parent[a1];
-    resetNodes(); resetCells(); resetEdges();
-    showPaths(lca === 0 ? a1 : lca, lca === 0 ? b1 : lca);
-    markJump(a1, lca, "active"); markJump(b1, lca, "comparing");
-    nst[a1] = "active"; nst[b1] = "comparing"; nst[lca] = "done";
-    cur.lca = lca;
-    snap("<b>③ 收尾</b>：u=" + a1 + " 与 v=" + b1 + " 已经是 LCA 的两个孩子，再上一级即答案 ⇒ <b>LCA(" + uq + ", " + vq +
-      ") = fa[0][" + a1 + "] = " + lca + "</b> ✅（u=" + uq + "、v=" + vq + " 的路径都经过它）。" +
-      "u 的祖先链 " + ancChain(t, uq).join("→") + "；v 的祖先链 " + ancChain(t, vq).join("→") +
-      "；深度 " + t.dep[uq] + "、" + t.dep[vq] + "，LCA 深度 " + t.dep[lca] + "。");
+    if (lca === 0 || lca === undefined) lca = a1;      // 防御：u≠v 时不会发生
+    paintPaths(lca, lca);
+    colorJump(a1, lca, "active"); colorJump(b1, lca, "comparing");
+    nst[a1] = "active"; nst[b1] = "comparing"; depSt[a1] = "active"; depSt[b1] = "comparing";
+    nst[lca] = "done"; depSt[lca] = "done";
+    fst[0][a1] = "active"; fst[0][b1] = "active";
+    var pth = treePath(t, uq, vq, lca);
+    var len = t.dep[uq] + t.dep[vq] - 2 * t.dep[lca];
+    snap("<b>③ 结论</b>：同步上跳结束时 u=" + a1 + " 与 v=" + b1 + " 恰好是 LCA 的两个孩子（同深且 fa[0] 相同），再上一级即答案 ⇒ " +
+      "<b>LCA(" + uq + ", " + vq + ") = fa[0][" + a1 + "] = " + lca + "</b> ✅：根到 " + uq + " 与根到 " + vq + " 的路径都经过它，" +
+      "且它是满足这一点的深度最大结点。核对祖先链 " + ancChain(t, uq).join("←") + " 与 " + ancChain(t, vq).join("←") +
+      "，两者从根看下去的公共前缀正停在 " + lca + "。dep[" + uq + "]=" + t.dep[uq] + "、dep[" + vq + "]=" + t.dep[vq] +
+      "、dep[lca]=" + t.dep[lca] + " ⇒ 树上距离 = " + t.dep[uq] + " + " + t.dep[vq] + " − 2×" + t.dep[lca] + " = " + len +
+      " 条边，路径 " + (pth ? pth.join("→") : "（找不到）") + " 恰好走过这么多条边。");
     return out;
   }
 
-  // 从 v 上跳 2^k 级（倍增表已完整）
-  function jumpBy(t, fa, v, k) { return fa[k][v]; }
-
-  function markJump(from, to, st) {
-    // 把 from 到 to 之间经过的树边染色
-    var cur2 = from, guard = 0;
-    while (cur2 !== to && guard++ <= tree.n + 2) {
-      var p = tree.parent[cur2];
-      var ei = edgeIdxStatic(cur2, p);
-      if (ei >= 0) estSet(ei, st);
-      if (p === 0) break;
-      cur2 = p;
-    }
-  }
-  var _est = null;
-  function estSet(i2, st) { if (_est && _est[i2] !== undefined) _est[i2] = st; }
-  function edgeIdxStatic(p, c) {
-    if (!tree || p === 0) return -1;
-    for (var a = 0; a < tree.edges.length; a++) {
-      var e = tree.edges[a];
-      if ((e.a === p && e.b === c) || (e.b === p && e.a === c)) return a;
-    }
-    return -1;
-  }
-  function markPathTo(x) { /* 供祖先情形使用 */ }
-
   // ---------- 绘制 ----------
   function drawGraph(s) {
-    var t = tree;
+    var t = tree, i;
     var html = '<svg width="' + W + '" height="' + t.h + '" viewBox="0 0 ' + W + " " + t.h + '">';
-    var i;
-    for (i = 0; i < t.edges.length; i++) {
-      var e = t.edges[i], st = s.est[i] || "default";
-      var a = POSX(t, e.a), b = POSX(t, e.b);
-      var col, sw = 2, so = 1;
-      if (st === "default") { col = "#9fa8da"; }
-      else { col = COL[st]; sw = 3.4; }
-      if (st === "active" || st === "comparing") so = 1;
-      html += '<line x1="' + a[0].toFixed(1) + '" y1="' + a[1].toFixed(1) + '" x2="' + b[0].toFixed(1) + '" y2="' + b[1].toFixed(1) +
-        '" style="stroke:' + col + ';stroke-width:' + sw + ';stroke-opacity:' + so + '"/>';
+    for (i = 0; i < s.edges.length; i++) {
+      var e = s.edges[i], st = s.est[i] || "default";
+      var col = st === "default" ? "#9fa8da" : COL[st];
+      html += '<line x1="' + t.x[e.a].toFixed(1) + '" y1="' + t.y[e.a].toFixed(1) + '" x2="' + t.x[e.b].toFixed(1) +
+        '" y2="' + t.y[e.b].toFixed(1) + '" style="stroke:' + col + ';stroke-width:' + (st === "default" ? 2 : 3.4) +
+        ';stroke-opacity:' + (st === "default" ? 0.5 : 1) + ';stroke-linecap:round"/>';
     }
     for (i = 0; i < s.ids.length; i++) {
       var id = s.ids[i], stn = s.nst[id] || "default";
-      var p = POSX(t, id);
+      var cx = t.x[id], cy = t.y[id];
       var tc = (stn === "default" || stn === "eliminated" || stn === "comparing") ? "#222" : "#fff";
-      html += '<circle cx="' + p[0].toFixed(1) + '" cy="' + p[1].toFixed(1) + '" r="' + R + '" style="fill:' + COL[stn] +
-        ';stroke:rgba(0,0,0,.3);stroke-width:' + (stn === "done" ? 3 : 1) + '"/>';
-      html += '<text x="' + p[0].toFixed(1) + '" y="' + (p[1] + 4.5).toFixed(1) + '" text-anchor="middle" font-size="13" font-weight="700" style="fill:' + tc + '">' + id + "</text>";
-      html += '<text x="' + p[0].toFixed(1) + '" y="' + (p[1] + R + 12).toFixed(1) + '" text-anchor="middle" font-size="10.5" style="fill:#5f5f5f">dep=' + s.dep[id] + "</text>";
+      html += '<circle cx="' + cx.toFixed(1) + '" cy="' + cy.toFixed(1) + '" r="' + R + '" style="fill:' + COL[stn] +
+        ';stroke:rgba(0,0,0,.32);stroke-width:' + (stn === "done" ? 3 : 1) + '"/>';
+      html += '<text x="' + cx.toFixed(1) + '" y="' + (cy + 4.5).toFixed(1) + '" text-anchor="middle" font-size="13" font-weight="700" style="fill:' +
+        tc + '">' + id + "</text>";
+      html += '<text x="' + cx.toFixed(1) + '" y="' + (cy + R + 12).toFixed(1) + '" text-anchor="middle" font-size="10.5" style="fill:#5f5f5f">dep=' +
+        s.dep[id] + "</text>";
     }
     html += "</svg>";
     svgEl.innerHTML = html;
   }
-  function POSX(t, id) { return [t.x[id], t.y[id]]; }
 
   function drawTables(s) {
-    var t = tree, i, k;
-    var h = "<thead><tr><th>结点</th><th>深度 dep</th><th>父 fa[0]</th><th>左子</th><th>右子</th></tr></thead><tbody>";
+    var i, k, h = "<thead><tr><th>结点</th><th>dep</th><th>fa[0]</th><th>左子</th><th>右子</th></tr></thead><tbody>";
     for (i = 0; i < s.ids.length; i++) {
-      var v = s.ids[i];
-      var st = s.depSt[v] || "default";
-      h += "<tr><td class=\"c-" + st + '"><b>' + v + "</b></td><td>" + s.dep[v] + "</td><td>" +
-        (s.par[v] === 0 ? "—" : s.par[v]) + "</td><td>" + (t.kidsL[v] === 0 ? "—" : t.kidsL[v]) +
-        "</td><td>" + (t.kidsR[v] === 0 ? "—" : t.kidsR[v]) + "</td></tr>";
+      var v = s.ids[i], st = s.depSt[v] || "default";
+      h += '<tr><td class="c-' + st + '"><b>' + v + "</b></td><td>" + s.dep[v] + "</td><td>" +
+        (s.par[v] === 0 ? "—" : s.par[v]) + "</td><td>" + (s.kl[v] === 0 ? "—" : s.kl[v]) +
+        "</td><td>" + (s.kr[v] === 0 ? "—" : s.kr[v]) + "</td></tr>";
     }
-    h += "</tbody>";
-    depEl.innerHTML = h;
+    depEl.innerHTML = h + "</tbody>";
 
     h = '<thead><tr><td class="lab">k \\ v</td>';
     for (i = 0; i < s.ids.length; i++) h += "<th>" + s.ids[i] + "</th>";
@@ -623,8 +618,7 @@ function lca(u, v):
       }
       h += "</tr>";
     }
-    h += "</tbody>";
-    faEl.innerHTML = h;
+    faEl.innerHTML = h + "</tbody>";
   }
 
   function draw(step) {
@@ -635,34 +629,22 @@ function lca(u, v):
   }
 
   function fillSelects() {
-    var ids = tree.ids, h = "", i;
+    var ids = tree.ids, i, h = "";
     for (i = 0; i < ids.length; i++) h += '<option value="' + ids[i] + '">' + ids[i] + "</option>";
+    var oldU = Number(uSel.value), oldV = Number(vSel.value);
     uSel.innerHTML = h;
     vSel.innerHTML = h;
-    var pick = [];
-    for (i = 0; i < ids.length; i++) if (tree.dep[ids[i]] === tree.maxDep) pick.push(ids[i]);
-    var nu = document.getElementById("uSel").value;
-    var nv = document.getElementById("vSel").value;
-    if (pick.indexOf(Number(nu)) >= 0 && pick.indexOf(Number(nv)) >= 0 && nu !== nv) return;
-    if (pick.length >= 2) {
-      uSel.value = String(pick[0]);
-      vSel.value = String(pick[pick.length - 1]);
-    } else {
-      uSel.value = String(ids[0]);
-      vSel.value = String(ids[ids.length - 1]);
-    }
+    if (ids.indexOf(oldU) >= 0 && ids.indexOf(oldV) >= 0) { uSel.value = String(oldU); vSel.value = String(oldV); return; }
+    var deep = [];
+    for (i = 0; i < ids.length; i++) if (tree.dep[ids[i]] === tree.maxDep) deep.push(ids[i]);
+    uSel.value = String(deep.length ? deep[0] : ids[0]);
+    vSel.value = String(deep.length > 1 ? deep[deep.length - 1] : ids[ids.length - 1]);
   }
 
   function readPair() {
     var u = Number(uSel.value), v = Number(vSel.value);
     if (tree.ids.indexOf(u) < 0) u = tree.ids[0];
     if (tree.ids.indexOf(v) < 0) v = tree.ids[tree.ids.length - 1];
-    if (u === v) {
-      // 允许 u=v（答案即自身），但默认换一对更 informative 的组合
-      var deepest = [];
-      for (var i = 0; i < tree.ids.length; i++) if (tree.dep[tree.ids[i]] === tree.maxDep) deepest.push(tree.ids[i]);
-      if (deepest.length >= 2) { u = deepest[0]; v = deepest[deepest.length - 1]; }
-    }
     return [u, v];
   }
 
