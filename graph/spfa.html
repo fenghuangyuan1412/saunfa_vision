@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bellman-Ford 与 SPFA - Saunfa Vision</title>
+<link rel="stylesheet" href="../assets/style.css">
+<style>
+.g-wrap { display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-start; }
+.g-svg { flex: 0 0 auto; }
+.g-svg svg { display: block; }
+.g-svg text { font-family: -apple-system, "Segoe UI", Roboto, "Noto Sans SC", sans-serif; }
+.g-side { min-width: 268px; flex: 1; }
+.box-label { font-size: 12.5px; color: var(--md-text-light); font-weight: 700; display: block; margin-bottom: 6px; }
+.sv-content table.tb { width: 100%; margin: 0 0 12px; font-size: 12.5px; }
+.sv-content table.tb th, .sv-content table.tb td { padding: 3px 6px; text-align: center; }
+.sv-content table.tb td.c-default { background: #fff; color: #222; }
+.sv-content table.tb td.c-comparing { background: var(--viz-comparing); color: #222; font-weight: 700; }
+.sv-content table.tb td.c-swapping { background: var(--viz-swapping); color: #fff; font-weight: 700; }
+.sv-content table.tb td.c-active { background: var(--viz-active); color: #fff; font-weight: 700; }
+.sv-content table.tb td.c-done { background: var(--viz-done); color: #fff; font-weight: 700; }
+.sv-content table.tb td.c-eliminated { background: var(--viz-eliminated); color: rgba(0,0,0,.4); }
+.tags { display: flex; flex-wrap: wrap; align-content: flex-start; gap: 4px; min-height: 40px; max-height: 150px;
+  overflow-y: auto; background: #fff; border: 1px solid var(--md-border); border-radius: 4px; padding: 6px; }
+.tag { font-size: 11.5px; padding: 2px 8px; border-radius: 10px; background: rgba(64,81,181,.1);
+  color: var(--md-primary); border: 1px solid rgba(64,81,181,.35); }
+.tag.head { background: var(--viz-active); color: #fff; border-color: #1a237e; }
+.tag.out { background: var(--viz-comparing); color: #222; border-color: #e65100; }
+.viz-controls select { font: inherit; font-size: 13.5px; padding: 4px 6px;
+  border: 1px solid rgba(0,0,0,.24); border-radius: 3px; background: #fff; color: var(--md-text); }
+</style>
+</head>
+<body data-page="graph/spfa">
+<main class="sv-content">
+
+<h1>Bellman-Ford 与 SPFA</h1>
+
+<p><strong>Bellman-Ford</strong> 与它的队列优化版 <strong>SPFA</strong>（Shortest Path Faster Algorithm）都能处理<strong>带负权边</strong>的单源最短路，并且能检测<strong>负环</strong>。它们不像 <a href="dijkstra.html">Dijkstra</a> 那样「取最小即定稿」，而是允许一个结点的距离被反复改进，因而可以安全地使用负权边。</p>
+
+<h2>算法原理</h2>
+
+<h3>Bellman-Ford：松弛 V−1 轮</h3>
+
+<p>把每条边按任意顺序扫一遍称为一轮松弛。一轮结束后，「最短路径只含 1 条边」的结点距离已正确；两轮后 2 条边的也正确……于是第 <code>k</code> 轮结束后，所有<strong>边数 ≤ k</strong> 的最短路都已就位。而无负环时结点 <code>v</code> 的最短路径可以取成<strong>简单路径</strong>（若路径重复经过某结点，去掉中间那个环不会让路更长），至多 <code>V−1</code> 条边——这就是 <code>V−1</code> 轮足够的原因，也是它<strong>能处理负权</strong>的原因。</p>
+
+<pre><code>procedure BellmanFord(s):
+    for v in V: d[v] = +∞; prev[v] = NIL
+    d[s] = 0
+    repeat V - 1 times:
+        anyUpdate = false
+        for (u, v, w) in E:                   // 全体边扫一轮
+            if d[u] ≠ +∞ 且 d[u] + w &lt; d[v]:
+                d[v] = d[u] + w; prev[v] = u
+                anyUpdate = true
+        if not anyUpdate: break               // 提前收敛
+    // 负环检测：第 V 轮仍能松弛则存在负环
+    for (u, v, w) in E:
+        if d[u] ≠ +∞ 且 d[u] + w &lt; d[v]: report "存在负环"</code></pre>
+
+<h3>SPFA：只把「刚被更新的点」再排队</h3>
+
+<p>Bellman-Ford 的浪费在于：一轮里绝大多数边根本不可能更新任何东西。注意到「只有 <code>u</code> 的 <code>d</code> 变小了，从 <code>u</code> 出发的边才<strong>可能</strong>再次生效」，于是用队列做优化：只把<strong>刚被更新的点</strong>放进队列等待处理，取出队头 <code>u</code> 松弛它的出边，谁被改进了谁入队。<code>inq[v]</code> 标记 <code>v</code> <strong>是否已在队中</strong>，保证一个结点在队中只占一份，避免同一结点被重复堆进队列造成规模爆炸；因此「出队后必须先把 <code>inq</code> 置回 false」，它才允许因再次被改进而入队。</p>
+
+<pre><code>procedure SPFA(s):
+    for v in V: d[v] = +∞; prev[v] = NIL; inq[v] = false; cnt[v] = 0
+    d[s] = 0
+    queue.push(s); inq[s] = true; cnt[s] = 1      // cnt[v]：当前最短路上的边数
+    while queue not empty:
+        u = queue.pop(); inq[u] = false           // 出队后才允许再次入队
+        for (u, v, w) in E:
+            if d[u] + w &lt; d[v]:
+                d[v] = d[u] + w; prev[v] = u
+                cnt[v] = cnt[u] + 1                // 到 v 的路径多了一条边
+                if cnt[v] ≥ V: report "存在负环"
+                if not inq[v]:
+                    queue.push(v); inq[v] = true</code></pre>
+
+<p><strong>负环的两种判据</strong>：① 统计每个点的<strong>入队次数</strong>，某点入队 ≥ <code>V</code> 次即判定负环；② 维护 <code>cnt[v]</code>（= <code>cnt[u]+1</code>，即当前最短路包含的边数），一旦 <code>cnt[v] ≥ V</code> 判定负环。两者都源于「无负环时最短路径至多 <code>V−1</code> 条边」；判据 ② 触发更早，只需多开一个数组。</p>
+
+<h3>负环示例：3 个结点</h3>
+
+<p>取图 <code>1→2</code>（权 1）、<code>2→3</code>（权 1）、<code>3→1</code>（权 −3），环 <code>1→2→3→1</code> 的总权 <code>1+1−3 = −1 &lt; 0</code>。以 1 为源点跑 SPFA，距离会被这个环一圈圈拉小，<code>cnt</code> 随之越界：</p>
+
+<table>
+  <thead><tr><th>事件</th><th><code>d[1]</code></th><th><code>d[2]</code></th><th><code>d[3]</code></th><th><code>cnt[1]</code></th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td>初始化</td><td>0</td><td>∞</td><td>∞</td><td>1</td><td>源点 1 入队，<code>cnt[1]=1</code></td></tr>
+    <tr><td>出队 1，松弛 <code>1→2</code></td><td>0</td><td>1</td><td>∞</td><td>1</td><td><code>0+1 &lt; ∞</code>，2 入队，<code>cnt[2]=2</code></td></tr>
+    <tr><td>出队 2，松弛 <code>2→3</code></td><td>0</td><td>1</td><td>2</td><td>1</td><td><code>1+1 &lt; ∞</code>，3 入队，<code>cnt[3]=3</code></td></tr>
+    <tr><td>出队 3，松弛 <code>3→1</code></td><td><b>−1</b></td><td>1</td><td>2</td><td><b>4 ≥ V=3</b></td><td><code>2+(−3) = −1 &lt; 0</code>：源点自己又被改进，且回到 1 的「路」用了 3 条边 ⇒ <strong>判据触发，报告负环</strong></td></tr>
+    <tr><td>若强行继续</td><td>−4, −7, …</td><td>−3, −6, …</td><td>−2, −5, …</td><td>持续 ↑</td><td>每绕环一圈三个距离同步减小 1，永不收敛</td></tr>
+  </tbody>
+</table>
+
+<div class="admonition danger">
+<div class="admonition-title">危险：负环上「最短路」无定义</div>
+<p>只要源点能够到达某个负环，源点到该环以及环可达的一切结点的最短距离就是 <code>−∞</code>：每绕环一次总权再降一点，有限的最短路径并不存在，<code>prev[]</code> 也会绕成环而无法回溯出「路径」。因此负环存在时算法的正确输出是<strong>「图中存在负环」这一判定</strong>，而不是一组 <code>d[]</code> 数值。常见处理：把负环上的点标记为特殊值后再回答查询；差分约束系统里「无解」正是由负环给出的。若只想判断「从源出发是否存在负环」，Bellman-Ford 跑满 <code>V</code> 轮、看第 <code>V</code> 轮是否仍能松弛即可。</p>
+</div>
+
+<div class="admonition warning">
+<div class="admonition-title">警告：SPFA 会被构造数据卡</div>
+<p>SPFA 平均很快（经验上约 <code>O(kE)</code>，<code>k</code> 为结点平均入队次数，随机图上接近 2），但<strong>最坏仍是 <code>O(VE)</code></strong>，而且这个最坏可以被出题人<strong>定向构造</strong>：网格图、随机稀疏图补若干边、「链式菊花图」等经典反图都能把它逼到与 Bellman-Ford 同级甚至更慢，竞赛中据此卡 SPFA 的题十分常见。启发式改进 <strong>SLF</strong>（<code>d[v]</code> 小于队头就插到队头）与 <strong>LLL</strong>（平均标号算法）在随机数据上有效，但<strong>不改变最坏界</strong>。结论：<strong>边权非负时优先用堆优化 Dijkstra（<code>O((V+E)\log V)</code>，稳定）</strong>；确有负权（或需要负环判定）时才用 SPFA / Bellman-Ford。Bellman-Ford 的边表三重循环常数极小、最好写，也最适合与「限步数 / 分层图」一类的扩展搭配。</p>
+</div>
+
+<h2>可视化演示</h2>
+
+<p>下方是一张 <strong>6 结点有向图</strong>，随机生成时通常会带上 <strong>1~2 条负权边</strong>（图中以红色 <code>−x</code> 标注），并保证<strong>不含负环</strong>；随机删边还可能造出<strong>不可达点</strong>。右侧依次是<strong>队列</strong>（左端为队头，「⬅」是刚出队正在处理的点）与距离表 <code>d[]</code>（含 <code>inq</code>、入队次数、<code>cnt</code>）。动画按「出队 → 逐条松弛出边 → 被改进且不在队中则入队」推进，直到队列为空。与 Dijkstra 页对照可见：同一个结点会被多次处理，正是因为它的 <code>d</code> 可能被负权边反复改进。</p>
+
+<div class="viz-panel">
+  <div class="viz-stage">
+    <div class="g-wrap">
+      <div class="g-svg" id="gsvg"></div>
+      <div class="g-side">
+        <span class="box-label">队列（左端 = 队头；⬅ = 正在出队处理的点）</span>
+        <div class="tags" id="queueBox"></div>
+        <span class="box-label" style="margin-top:10px">距离表 d[]（∞ = 尚未抵达）</span>
+        <table class="tb" id="distTbl"></table>
+      </div>
+    </div>
+  </div>
+  <div class="viz-msg" id="msg"></div>
+  <div class="viz-legend">
+    <span class="chip"><span class="sw" style="background:var(--viz-default)"></span>不在处理中</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-active)"></span>队头：正在出队松弛的点</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-comparing)"></span>正在松弛的出边 / 邻居</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-swapping)"></span>距离被更新的那一下</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-done)"></span>结束后可达（d 即最短距离）</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-eliminated)"></span>不可达（d 仍为 ∞）</span>
+  </div>
+  <div id="runner"></div>
+  <div class="viz-controls">
+    <label>源点 <select id="srcSel"></select></label>
+    <button id="btnRand" class="viz-btn">🎲 随机新图</button>
+  </div>
+</div>
+
+<h2>复杂度分析</h2>
+
+<table>
+  <thead><tr><th>算法 / 指标</th><th>量级</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td>Bellman-Ford 时间</td><td><code>O(V·E)</code></td><td>V−1 轮 × 每轮扫全部边；实际常在远少于 V−1 轮后收敛（加 <code>anyUpdate</code> 提前退出）</td></tr>
+    <tr><td>SPFA 时间（最坏）</td><td><code>O(V·E)</code></td><td>可被构造数据（网格图、链式菊花图等）逼到此界</td></tr>
+    <tr><td>SPFA 时间（平均 / 随机图）</td><td>约 <code>O(k·E)</code>，<code>k ≈ 2</code></td><td>k 为结点平均入队次数，随机数据上通常快于 Bellman-Ford 与堆优化 Dijkstra</td></tr>
+    <tr><td>空间（两者）</td><td><code>O(V + E)</code></td><td>边表 / 邻接表 + <code>d[]</code> + <code>prev[]</code> + <code>inq[]</code> + <code>cnt[]</code> + 队列（≤ V 项）</td></tr>
+    <tr><td>边权要求</td><td colspan="2">可含<strong>负权边</strong>；但源点可达范围内<strong>不得有负环</strong>（否则最短路无定义，算法只报告负环）</td></tr>
+    <tr><td>负环检测</td><td colspan="2">入队次数 ≥ V；或 <code>cnt[v]=cnt[u]+1 ≥ V</code>；或 Bellman-Ford 第 V 轮仍能松弛</td></tr>
+  </tbody>
+</table>
+
+<h2>应用与局限</h2>
+
+<p><strong>应用</strong>：① 含负权边的最短路——把「收益」取负即为求最大收益路（赚最多钱的航线）、任务网络中的时间盈余；② <strong>差分约束系统</strong>：把约束 <code>x_i − x_j ≤ c</code> 写成边 <code>j→i</code> 权 <code>c</code>，一组最短路解即满足全部约束，负环即无解；③ <strong>限步数最短路</strong>：Bellman-Ford 的第 <code>k</code> 轮天然给出「至多 k 条边」的答案，打折机票（最多 K 次中转）这类题就是它加上分层图；④ 判负环（汇率套利检测）；⑤ 图不大而代码求简时，三重循环的 Bellman-Ford 最不容易写错。</p>
+
+<p><strong>局限</strong>：① 最坏 <code>O(VE)</code>，大图稠密图吃不消，SPFA 的最坏界还可被人为构造；② 存在负环时给不出距离；③ 与 Dijkstra 一样是<strong>单源</strong>算法，多源请用 <a href="floyd.html">Floyd</a>；④ 不具贪心定稿性质，无法与 A* 之类的启发式结合。</p>
+
+<div class="admonition info">
+<div class="admonition-title">参考</div>
+<p><a href="https://oi-wiki.org/graph/shortest-path/" target="_blank" rel="noopener">OI Wiki — 最短路问题（Bellman-Ford / SPFA 及其优化、负环判定）</a>；Introduction to Algorithms 第 24.1 节；同站姊妹页：<a href="dijkstra.html">Dijkstra 最短路</a>、<a href="floyd.html">Floyd 多源最短路</a>。</p>
+</div>
+
+</main>
+
+<script src="../assets/nav.js" data-base="../"></script>
+<script src="../assets/viz.js"></script>
+<script>
+(function () {
+  var svgEl = document.getElementById("gsvg");
+  var tblEl = document.getElementById("distTbl");
+  var qEl = document.getElementById("queueBox");
+  var runner = null;
+  var steps = [];
+  var graph = [];
+
+  var INF = 1e15;
+  var NAMES = ["A", "B", "C", "D", "E", "F"];
+  var POS = { A: [55, 150], B: [162, 58], C: [162, 242], D: [278, 150], E: [388, 58], F: [388, 242] };
+  // a→b 有向；drop=1 表示随机生成时允许删掉该边（制造不可达点）
+  // 注意 F→D 与 D→E、E→F 组成回路，因此结点被反复改进、甚至出现负环都可能
+  var SKEL = [
+    { a: "A", b: "B", drop: 1 }, { a: "A", b: "C", drop: 1 }, { a: "B", b: "C", drop: 0 },
+    { a: "B", b: "D", drop: 1 }, { a: "C", b: "D", drop: 0 }, { a: "D", b: "E", drop: 1 },
+    { a: "E", b: "F", drop: 0 }, { a: "C", b: "F", drop: 1 }, { a: "B", b: "E", drop: 1 },
+    { a: "F", b: "D", drop: 0 }
+  ];
+  var W = 452, H = 306, R = 19;
+  var COL = {
+    "default": "var(--viz-default)", "comparing": "var(--viz-comparing)", "swapping": "var(--viz-swapping)",
+    "active": "var(--viz-active)", "done": "var(--viz-done)", "eliminated": "var(--viz-eliminated)"
+  };
+
+  function fmt(d) { return d >= INF ? "∞" : String(d); }
+  function fmtW(w) { return w < 0 ? "−" + (-w) : String(w); }
+  function opOf(a, b) { return a < b ? " &lt; " : (a === b ? " = " : " ≥ "); }
+  // "d[B]+(−2) = 3−2 = 1"
+  function candStr(u, w, du, cand) {
+    var plus = w < 0 ? "+(−" + (-w) + ")" : "+" + w;
+    var calc = du + (w < 0 ? "−" : "+") + Math.abs(w);
+    return "d[" + u + "]" + plus + " = " + calc + " = " + cand;
+  }
+
+  // 负环判定（超级源 + Bellman-Ford，严格 < 松弛）：用于生成图时保证无负环，
+  // 以及演示中触发 cnt[v] ≥ V 判据后的独立复核。
+  // 注意：这里必须用严格 < 。若用 <= ，任何「已取等」的边都会被当成仍在更新，
+  // 于是含负权边的图会被误判为负环（曾导致随机图里永远不出现负权边）。
+  function hasNegCycle(g) {
+    var d = {}, i, k, updated = false, n = NAMES.length;
+    for (i = 0; i < n; i++) d[NAMES[i]] = 0;
+    for (k = 0; k < n; k++) {
+      updated = false;
+      for (i = 0; i < g.length; i++) {
+        var e2 = g[i];
+        if (d[e2.a] + e2.w < d[e2.b]) { d[e2.b] = d[e2.a] + e2.w; updated = true; }
+      }
+      if (!updated) return false;
+    }
+    return updated;
+  }
+
+  function genGraph() {
+    var attempt, i, g;
+    for (attempt = 0; attempt < 400; attempt++) {
+      g = [];
+      var dropped = {};
+      var droppable = [];
+      for (i = 0; i < SKEL.length; i++) if (SKEL[i].drop) droppable.push(i);
+      var nDrop = Math.random() < 0.4 ? SV.randInt(1, 2) : 0;
+      for (i = 0; i < nDrop && droppable.length; i++) {
+        var p = SV.randInt(0, droppable.length - 1);
+        dropped[droppable[p]] = 1;
+        droppable.splice(p, 1);
+      }
+      for (i = 0; i < SKEL.length; i++) {
+        if (dropped[i]) continue;
+        g.push({ a: SKEL[i].a, b: SKEL[i].b, w: SV.randInt(1, 9) });
+      }
+      var nNeg = Math.random() < 0.85 ? SV.randInt(1, 2) : 0;
+      var idxs = [];
+      for (i = 0; i < g.length; i++) idxs.push(i);
+      for (i = 0; i < nNeg && idxs.length; i++) {
+        var q = SV.randInt(0, idxs.length - 1);
+        g[idxs[q]].w = -SV.randInt(1, 5);
+        idxs.splice(q, 1);
+      }
+      if (!hasNegCycle(g)) return g;
+    }
+    g = [];
+    for (i = 0; i < SKEL.length; i++) g.push({ a: SKEL[i].a, b: SKEL[i].b, w: SV.randInt(1, 9) });
+    return g;
+  }
+
+  function outEdges(id) {
+    var r = [], k;
+    for (k = 0; k < graph.length; k++) if (graph[k].a === id) r.push({ to: graph[k].b, w: graph[k].w, ei: k });
+    return r;
+  }
+
+  function buildSteps(g, s) {
+    graph = g;
+    var n = NAMES.length;
+    var out = [];
+    var dist = {}, prev = {}, nst = {}, est = [], inq = {}, enq = {}, cnt = {}, pops = {};
+    var queue = [], head = null;
+    var i, k;
+    for (i = 0; i < n; i++) {
+      var id0 = NAMES[i];
+      dist[id0] = INF; prev[id0] = null; nst[id0] = "default";
+      inq[id0] = false; enq[id0] = 0; cnt[id0] = 0; pops[id0] = 0;
+    }
+    for (i = 0; i < g.length; i++) est.push("default");
+    dist[s] = 0; inq[s] = true; enq[s] = 1; cnt[s] = 1;
+    queue.push(s);
+    var totalPops = 0, totalCheck = 0, totalSucc = 0;
+
+    function copyArr(o) { var r = {}, a; for (a = 0; a < n; a++) r[NAMES[a]] = o[NAMES[a]]; return r; }
+    function clearEdges() { for (var a = 0; a < g.length; a++) est[a] = "default"; }
+    function snap(msg) {
+      var sn = {}, se = {}, a;
+      for (a = 0; a < n; a++) sn[NAMES[a]] = nst[NAMES[a]];
+      for (a = 0; a < g.length; a++) se[a] = est[a];
+      out.push({
+        nst: sn, est: se, dist: copyArr(dist), prev: copyArr(prev), inq: copyArr(inq),
+        enq: copyArr(enq), cnt: copyArr(cnt), pops: copyArr(pops),
+        q: queue.slice(), head: head, src: s, g: g, msg: msg
+      });
+    }
+
+    var ws = [], negs = 0;
+    for (i = 0; i < g.length; i++) { ws.push(g[i].a + "→" + g[i].b + " 权 " + fmtW(g[i].w)); if (g[i].w < 0) negs++; }
+    snap("有向图：" + n + " 个结点、" + g.length + " 条边，其中 <b>" + negs + " 条负权边</b>（Dijkstra 无法处理，SPFA 可以）。边表：" +
+      ws.join("；") + "。源点 " + s + "：d[" + s + "]=0、入队，其余 d 均为 ∞。规则：出队 u → 逐条松弛 u 的出边 → 谁被改进且不在队中谁入队。");
+
+    var negCycle = null;
+    while (queue.length) {
+      var u = queue.shift();
+      inq[u] = false;
+      head = u;
+      pops[u]++;
+      totalPops++;
+      clearEdges();
+      nst[u] = "active";
+      var oe = outEdges(u);
+      snap("出队队头 <b>" + u + "</b>（inq[" + u + "] 置 false，此后它可再次入队），d[" + u + "]=" + fmt(dist[u]) +
+        "；这是第 " + pops[u] + " 次处理 " + u + "（累计入队 " + enq[u] + " 次）。检查它的 " + oe.length +
+        " 条出边，队列剩 " + queue.length + " 项" + (queue.length ? "：" + queue.join("、") : "（空）") + "。");
+      for (i = 0; i < oe.length; i++) {
+        var e = oe[i], v = e.to;
+        var du = dist[u];
+        var cand = du + e.w;
+        var old = dist[v];
+        clearEdges();
+        est[e.ei] = "comparing";
+        nst[v] = "comparing";
+        totalCheck++;
+        if (cand < old) {
+          dist[v] = cand;
+          prev[v] = u;
+          cnt[v] = cnt[u] + 1;
+          totalSucc++;
+          nst[v] = "swapping";
+          var wasInq = inq[v];
+          var qTxt;
+          if (!wasInq) {
+            queue.push(v);
+            inq[v] = true;
+            enq[v]++;
+            qTxt = v + " 不在队中（inq=false）→ <b>入队</b>（第 " + enq[v] + " 次入队，队尾追加，队列现有 " + queue.length + " 项）";
+          } else {
+            qTxt = v + " 已在队中（inq=true）→ <b>不重复入队</b>，它本轮出队时会用新的 d[" + v + "] 再松弛";
+          }
+          snap("松弛 <b>" + u + "→" + v + "</b> 权 " + fmtW(e.w) + "：" + candStr(u, e.w, du, cand) +
+            opOf(cand, old) + "d[" + v + "]=" + fmt(old) + " → <b>d[" + v + "]=" + cand +
+            "，prev[" + v + "]=" + u + "</b>" + (old >= INF ? "（首次抵达该点）" : "（发现更短路，红＝距离刚被更新）") +
+            "；cnt[" + v + "]=cnt[" + u + "]+1=" + cnt[v] + "。" + qTxt + "。");
+          nst[v] = "default";
+          if (cnt[v] >= n && hasNegCycle(g) && !negCycle) {
+            negCycle = "⚠ <b>cnt[" + v + "]=" + cnt[v] + " ≥ V=" + n + "</b>，且独立复核确认图中确有负环 ⇒ 源点 " + s +
+              " 可达范围内的最短距离无定义（绕环一次就更短），算法应立刻停止并报告「存在负环」。";
+          }
+        } else {
+          snap("检查 " + u + "→" + v + " 权 " + fmtW(e.w) + "：" + candStr(u, e.w, du, cand) +
+            opOf(cand, old) + " d[" + v + "]=" + fmt(old) + "，<b>不更新</b>（绕道 " + u +
+            " 并不比 " + v + " 现在的标号更短）。");
+          nst[v] = "default";
+        }
+        clearEdges();
+      }
+      nst[u] = "default";
+      head = null;
+      if (negCycle) { snap(negCycle + " 本页随机图会预先排除负环，正常演示不会走到这一步。"); return out; }
+    }
+
+    var reach = [], unre = [];
+    clearEdges();
+    head = null;
+    for (i = 0; i < n; i++) {
+      var x = NAMES[i];
+      if (dist[x] < INF) { nst[x] = "done"; reach.push(x + "=" + fmt(dist[x])); }
+      else { nst[x] = "eliminated"; unre.push(x); }
+    }
+    var tree = [], a2;
+    for (a2 = 0; a2 < n; a2++) {
+      var z = NAMES[a2];
+      if (z !== s && prev[z] !== null) tree.push(z + "←" + prev[z]);
+    }
+    snap("队列已空，SPFA 结束 ✅ 源点 <b>" + s + "</b> 到各点最短距离：" + reach.join("，") +
+      "。共出队 " + totalPops + " 次、检查 " + totalCheck + " 条边、成功松弛 " + totalSucc + " 次" +
+      (totalPops > n ? "（出队次数 " + totalPops + " 大于结点数 " + n + "，说明确有结点被反复改进——这就是负权边的影响）" : "") + "。" +
+      "最短树前驱边：" + (tree.length ? tree.join("，") : "（源点出发没有其他可达点）") + "。");
+    snap("最终结论 ✅ d(" + s + ") = {" + reach.join(", ") + "}" +
+      (unre.length ? "；不可达点（标灰，沿箭头走不到）：" + unre.join("、") + "，d 保持 ∞"
+        : "；全部 " + n + " 个结点均从 " + s + " 可达，无 ∞ 残留") +
+      "。与 Dijkstra 的关键差别：<b>已处理过的点仍可被负权边改进并重新入队</b>，因此不设「定稿」这一步。");
+    return out;
+  }
+
+  function drawGraph(s) {
+    var html = '<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + " " + H + '">';
+    html += '<defs>' +
+      '<marker id="mh-default" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" style="fill:#9fa8da"/></marker>' +
+      '<marker id="mh-comparing" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" style="fill:var(--viz-comparing)"/></marker>' +
+      '<marker id="mh-swapping" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" style="fill:var(--viz-swapping)"/></marker>' +
+      '<marker id="mh-active" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" style="fill:var(--viz-active)"/></marker>' +
+      '<marker id="mh-done" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" style="fill:var(--viz-done)"/></marker>' +
+      '<marker id="mh-eliminated" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" style="fill:var(--viz-eliminated)"/></marker>' +
+      "</defs>";
+    var i;
+    for (i = 0; i < s.g.length; i++) {
+      var e = s.g[i], st = s.est[i] || "default";
+      var a = POS[e.a], b = POS[e.b];
+      var dx = b[0] - a[0], dy = b[1] - a[1];
+      var L = Math.sqrt(dx * dx + dy * dy) || 1;
+      var ux = dx / L, uy = dy / L;
+      var x1 = a[0] + ux * (R + 1), y1 = a[1] + uy * (R + 1);
+      var x2 = b[0] - ux * (R + 9), y2 = b[1] - uy * (R + 9);
+      var col = st === "default" ? "#9fa8da" : COL[st];
+      html += '<line x1="' + x1.toFixed(1) + '" y1="' + y1.toFixed(1) + '" x2="' + x2.toFixed(1) + '" y2="' + y2.toFixed(1) +
+        '" style="stroke:' + col + ';stroke-width:' + (st === "default" ? 1.7 : 3.2) + '" marker-end="url(#mh-' + st + ')"/>';
+    }
+    for (i = 0; i < s.g.length; i++) {
+      var e3 = s.g[i], st3 = s.est[i] || "default";
+      var p = POS[e3.a], q = POS[e3.b];
+      var mx = (p[0] + q[0]) / 2, my = (p[1] + q[1]) / 2;
+      var txt = fmtW(e3.w);
+      var bw = 12 + txt.length * 7;
+      html += '<rect x="' + (mx - bw / 2) + '" y="' + (my - 9) + '" width="' + bw +
+        '" height="17" rx="3" style="fill:#fff;stroke:' + (st3 === "default" ? (e3.w < 0 ? "#e57373" : "#d0d0d0") : COL[st3]) + ';stroke-width:1"/>';
+      html += '<text x="' + mx + '" y="' + (my + 4) + '" text-anchor="middle" font-size="11.5" font-weight="700" style="fill:' +
+        (st3 === "default" ? (e3.w < 0 ? "#c62828" : "#5f5f5f") : (st3 === "comparing" || st3 === "swapping" ? "#222" : "#2e7d32")) + '">' + txt + "</text>";
+    }
+    for (i = 0; i < NAMES.length; i++) {
+      var id = NAMES[i], stn = s.nst[id] || "default";
+      var pp = POS[id];
+      var tc = (stn === "default" || stn === "eliminated" || stn === "comparing") ? "#222" : "#fff";
+      html += '<circle cx="' + pp[0] + '" cy="' + pp[1] + '" r="' + R + '" style="fill:' + COL[stn] +
+        ';stroke:rgba(0,0,0,.3);stroke-width:' + (stn === "done" ? 3 : (s.inq[id] ? 2.6 : 1)) + '"/>';
+      if (s.inq[id] && stn === "default") {
+        html += '<circle cx="' + pp[0] + '" cy="' + pp[1] + '" r="' + (R + 4) +
+          '" style="fill:none;stroke:var(--viz-active);stroke-width:1.6;stroke-dasharray:3 2"/>';
+      }
+      html += '<text x="' + pp[0] + '" y="' + (pp[1] + 5) + '" text-anchor="middle" font-size="13.5" font-weight="700" style="fill:' + tc + '">' + id + "</text>";
+      html += '<text x="' + pp[0] + '" y="' + (pp[1] + R + 13) + '" text-anchor="middle" font-size="11" style="fill:' +
+        (s.inq[id] ? "#4051b5" : "#5f5f5f") + '">d=' + fmt(s.dist[id]) + (s.inq[id] ? "（队中）" : "") + "</text>";
+    }
+    html += "</svg>";
+    svgEl.innerHTML = html;
+  }
+
+  function drawTable(s) {
+    var h = "<thead><tr><th>结点</th><th>d</th><th>prev</th><th>inq</th><th>入队</th><th>出队</th><th>cnt</th></tr></thead><tbody>";
+    for (var i = 0; i < NAMES.length; i++) {
+      var id = NAMES[i];
+      var st = s.nst[id] || "default";
+      h += "<tr><td class=\"c-" + st + '"><b>' + id + "</b></td><td>" + fmt(s.dist[id]) +
+        "</td><td>" + (s.prev[id] === null ? "—" : s.prev[id]) +
+        "</td><td class=\"c-" + (s.inq[id] ? "active" : "default") + "\">" + (s.inq[id] ? "true" : "false") +
+        "</td><td>" + s.enq[id] + "</td><td>" + s.pops[id] +
+        "</td><td class=\"c-" + (s.cnt[id] >= NAMES.length ? "swapping" : "default") + "\">" + (s.dist[id] >= INF ? "—" : s.cnt[id]) + "</td></tr>";
+    }
+    h += "</tbody>";
+    tblEl.innerHTML = h;
+    var q = "";
+    if (s.head !== null && s.head !== undefined) q += '<span class="tag out">⬅ 出队 ' + s.head + "</span>";
+    for (i = 0; i < s.q.length; i++) q += '<span class="tag' + (i === 0 ? " head" : "") + '">' + s.q[i] + "</span>";
+    if (!s.q.length) q += '<span style="font-size:12px;color:#999">（队列为空）</span>';
+    qEl.innerHTML = q;
+  }
+
+  function draw(step) {
+    var s = step || steps[0];
+    if (!s) return;
+    drawGraph(s);
+    drawTable(s);
+  }
+
+  var srcSel = document.getElementById("srcSel");
+
+  function fillSelect() {
+    var h = "", i;
+    for (i = 0; i < NAMES.length; i++) h += '<option value="' + NAMES[i] + '">' + NAMES[i] + "</option>";
+    srcSel.innerHTML = h;
+    srcSel.value = "A";
+  }
+  function readSrc() {
+    var v = srcSel.value;
+    return NAMES.indexOf(v) >= 0 ? v : "A";
+  }
+
+  function restart() {
+    steps = buildSteps(genGraph(), readSrc());
+    if (!runner) {
+      runner = SV.runner({
+        host: document.getElementById("runner"),
+        msgEl: document.getElementById("msg"),
+        steps: steps,
+        render: draw
+      });
+    } else {
+      runner.setSteps(steps);
+      draw(null);
+    }
+  }
+
+  fillSelect();
+  srcSel.addEventListener("change", restart);
+  document.getElementById("btnRand").addEventListener("click", restart);
+  restart();
+})();
+</script>
+</body>
+</html>

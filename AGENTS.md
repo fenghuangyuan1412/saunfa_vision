@@ -29,8 +29,11 @@ Saunfa Vision 是一个**仿 OI-wiki 风格**的静态算法讲解网站，面�
 │   └── viz.js                 # SV.runner 步骤播放器 + 小工具
 ├── sorting/                   # 排序算法
 ├── searching/                 # 查找算法
+├── basic/                     # 基础算法（复杂度/枚举/模拟/递归分治/贪心/前缀和差分/二分答案/倍增/构造）
+├── dp/                        # 动态规划
 ├── data-structure/            # 数据结构
-└── graph/                     # 图论
+├── graph/                     # 图论
+└── string/                    # 字符串算法
 ```
 
 新增分类：新建小写连字符英文目录，并在 `assets/nav.js` 的 `NAV` 中加一节。

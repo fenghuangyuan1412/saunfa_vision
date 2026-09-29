@@ -13,6 +13,17 @@
     { label: "首页", items: [
       { key: "home", href: "index.html", title: "欢迎来到 Saunfa Vision" }
     ]},
+    { label: "基础算法", items: [
+      { key: "basic/complexity",            href: "basic/complexity.html",            title: "复杂度分析" },
+      { key: "basic/enumeration",           href: "basic/enumeration.html",           title: "枚举" },
+      { key: "basic/simulation",            href: "basic/simulation.html",            title: "模拟" },
+      { key: "basic/recursion",             href: "basic/recursion.html",             title: "递归 & 分治" },
+      { key: "basic/greedy",                href: "basic/greedy.html",                title: "贪心" },
+      { key: "basic/prefix-sum",            href: "basic/prefix-sum.html",            title: "前缀和 & 差分" },
+      { key: "basic/binary-search-answer",  href: "basic/binary-search-answer.html",  title: "二分答案" },
+      { key: "basic/binary-lifting",        href: "basic/binary-lifting.html",        title: "倍增" },
+      { key: "basic/construction",          href: "basic/construction.html",          title: "构造" }
+    ]},
     { label: "排序算法", items: [
       { key: "sorting/bubble-sort", href: "sorting/bubble-sort.html", title: "冒泡排序" },
       { key: "sorting/quick-sort",  href: "sorting/quick-sort.html",  title: "快速排序" },
@@ -21,14 +32,32 @@
     { label: "查找算法", items: [
       { key: "searching/binary-search", href: "searching/binary-search.html", title: "二分查找" }
     ]},
+    { label: "动态规划", items: [
+      { key: "dp/number-triangle",     href: "dp/number-triangle.html",     title: "数字三角形" },
+      { key: "dp/lis",                 href: "dp/lis.html",                 title: "最长上升子序列" },
+      { key: "dp/max-subarray",        href: "dp/max-subarray.html",        title: "最大子段和" },
+      { key: "dp/knapsack-01",         href: "dp/knapsack-01.html",         title: "0/1 背包" },
+      { key: "dp/complete-knapsack",   href: "dp/complete-knapsack.html",   title: "完全背包" },
+      { key: "dp/lcs",                 href: "dp/lcs.html",                 title: "最长公共子序列" },
+      { key: "dp/edit-distance",       href: "dp/edit-distance.html",       title: "编辑距离" },
+      { key: "dp/interval-dp-stone",   href: "dp/interval-dp-stone.html",   title: "区间 DP：石子合并" }
+    ]},
     { label: "数据结构", items: [
       { key: "data-structure/stack",        href: "data-structure/stack.html",        title: "栈" },
       { key: "data-structure/linked-list",  href: "data-structure/linked-list.html",  title: "链表" },
       { key: "data-structure/bst",          href: "data-structure/bst.html",          title: "二叉搜索树" }
     ]},
-    { label: "图论基础", items: [
-      { key: "graph/bfs", href: "graph/bfs.html", title: "广度优先搜索" },
-      { key: "graph/dfs", href: "graph/dfs.html", title: "深度优先搜索" }
+    { label: "图论", items: [
+      { key: "graph/bfs",      href: "graph/bfs.html",      title: "广度优先搜索" },
+      { key: "graph/dfs",      href: "graph/dfs.html",      title: "深度优先搜索" },
+      { key: "graph/dijkstra", href: "graph/dijkstra.html", title: "Dijkstra 最短路" },
+      { key: "graph/spfa",     href: "graph/spfa.html",     title: "Bellman-Ford 与 SPFA" },
+      { key: "graph/floyd",    href: "graph/floyd.html",    title: "Floyd 多源最短路" },
+      { key: "graph/lca",      href: "graph/lca.html",      title: "最近公共祖先 LCA" }
+    ]},
+    { label: "字符串", items: [
+      { key: "string/trie", href: "string/trie.html", title: "Trie 字典树" },
+      { key: "string/kmp",  href: "string/kmp.html",  title: "KMP 模式匹配" }
     ]}
   ];
 

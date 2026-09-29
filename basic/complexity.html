@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>复杂度分析 - Saunfa Vision</title>
+<link rel="stylesheet" href="../assets/style.css">
+<style>
+.fn-name { font-size: 11px; color: rgba(0,0,0,.45); white-space: nowrap; }
+.bar.fnbar { min-width: 56px; }
+.cmp-note { font-size: 12.5px; color: var(--md-text-light); margin: 6px 0 0; }
+</style>
+</head>
+<body data-page="basic/complexity">
+<main class="sv-content">
+
+<h1>复杂度分析</h1>
+
+<p>编写算法时最重要的问题之一是：<strong>当输入规模 n 增大时，运行时间增长多快？</strong>大 O 记号用「只保留增长最快的一项、忽略常数系数」的方式给出这个增长速度的上界，使我们可以脱离具体机器与代码细节，比较算法本身的优劣。</p>
+
+<h2>算法原理</h2>
+
+<p>设算法的基本操作次数为 T(n)。若存在常数 c 与 n₀，使得对所有 n ≥ n₀ 都有 T(n) ≤ c·g(n)，则记 T(n) = O(g(n))。实践中只需把 T(n) 的表达式取最高阶项并去掉系数：</p>
+
+<pre><code>例：T(n) = 3n² + 7n + 12
+    去掉低阶项 7n、12   →  3n²
+    去掉常数系数 3      →  n²
+故 T(n) = O(n²)
+
+规则速记：
+    O(c) = O(1)                常数不算复杂度
+    O(c·n) = O(n)              系数忽略
+    O(n² + n) = O(n²)          低阶忽略
+    循环嵌套按「总执行次数」合并，不简单相乘</code></pre>
+
+<p>同一算法在不同数据上耗时不同，因此区分三种情形：<strong>最坏复杂度</strong>（所有规模 n 的输入中最慢的一个，保证「绝不超过」）、<strong>平均复杂度</strong>（等概率假设下的期望，如快排 O(n log n)）与<strong>最好复杂度</strong>（最有利的输入，如冒泡 O(n)）。竞赛与工程中通常按<strong>最坏</strong>情形评估，只有当平均/最好有独立价值（如快排、哈希）时才单列。</p>
+
+<p>常见增长阶由慢到快（越好）排列为：</p>
+
+<pre><code>O(1) &lt; O(log n) &lt; O(n) &lt; O(n log n) &lt; O(n²) &lt; O(2ⁿ) &lt; O(n!)</code></pre>
+
+<div class="admonition warning">
+<div class="admonition-title">为什么 O(2ⁿ) 与 O(n!) 几乎不可接受</div>
+<p>指数级与阶乘级的增长速度完全不在人类直觉之内：n = 20 时 2ⁿ ≈ 1.05×10⁶ 尚可，n = 60 时 2⁶⁰ ≈ 1.15×10¹⁸ 已超过现代计算机 1 秒约 10⁸ 次运算的<strong>百年量级</strong>；n = 26 时 26! ≈ 4.03×10²⁶，按 10⁸ 次/秒要算约 1.28×10¹¹ 年——比宇宙年龄（约 1.38×10¹⁰ 年）还长。经验法则：一旦复杂度是 2ⁿ 或 n!，n 一般不能超过 <strong>20~24</strong>。</p>
+</div>
+
+<p><strong>以 1 秒约 10⁸ 次基本运算估算可行规模</strong>：令 f(n) ≤ 10⁸ 反解 n——O(n) 可到 10⁸；O(n log n) 约 5×10⁶~10⁷；O(n²) 约 10⁴；O(n³) 约 460；O(2ⁿ) 约 26；O(n!) 约 12。</p>
+
+<h2>可视化演示</h2>
+
+<p>第一个面板把六个典型函数 f(n) 画在同一行条形图上，n 逐步增大。条高采用<strong>对数尺度</strong>（否则 2ⁿ 与 n! 会把其他条压成看不见），条上标注真实数值。</p>
+
+<div class="viz-panel">
+  <div class="viz-stage"><div class="bar-stage" id="bars"></div></div>
+  <div class="viz-msg" id="msg1"></div>
+  <div class="viz-legend">
+    <span class="chip"><span class="sw" style="background:var(--viz-default)"></span>未高亮/基态</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-done)"></span>≤10⁸ 次：1 秒内可接受</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-comparing)"></span>10⁸~10¹⁰：临界</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-swapping)"></span>&gt;10¹⁰：远超时限</span>
+  </div>
+  <div id="runner1"></div>
+</div>
+
+<p>第二个面板做「实测对比」：对同一个 n 与同样多的区间询问，统计<strong>朴素逐段扫描累加（O(n²) 总操作）</strong>与<strong>前缀和（O(n) 总操作）</strong>各自执行的基本操作次数，用两根条对比。</p>
+
+<div class="viz-panel">
+  <div class="viz-stage"><div class="bar-stage" id="bars2"></div><p class="cmp-note">暴力：对每次询问 [l,r] 从 l 到 r 逐格累加（r−l+1 次加法）；前缀和：预处理 S[i]=S[i−1]+a[i] 共 n 次加法，每次询问只做 1 次减法。</p></div>
+  <div class="viz-msg" id="msg2"></div>
+  <div class="viz-legend">
+    <span class="chip"><span class="sw" style="background:var(--viz-comparing)"></span>暴力枚举操作数</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-done)"></span>前缀和操作数</span>
+  </div>
+  <div id="runner2"></div>
+  <div class="viz-controls">
+    <button id="btnQueries" class="viz-btn">🎲 随机新询问</button>
+  </div>
+</div>
+
+<h2>复杂度分析</h2>
+
+<p>本页是概念页，没有单一算法可谈「最优/平均/最坏运行时间」，故将惯例中的复杂度表替换为<strong>常见增长阶速查表</strong>（规范允许不适用时省略）。表中「1 秒内可接受的最大 n」按 10⁸ 次运算估算；最后一列回答一个极限问题：若 n 大到 10¹⁰⁰⁰（古戈尔）量级，该量级是否仍可接受。</p>
+
+<table>
+  <thead><tr><th>量级</th><th>名称</th><th>1 秒内可接受的最大 n（≈10⁸ 次运算）</th><th>n = 10¹⁰⁰⁰ 内能否接受</th><th>典型算法</th></tr></thead>
+  <tbody>
+    <tr><td><code>O(1)</code></td><td>常数</td><td>任意 n</td><td>✅ 可接受</td><td>数组按下标访问、栈顶查询</td></tr>
+    <tr><td><code>O(log n)</code></td><td>对数</td><td>任意实际 n</td><td>✅ 可接受（log n ≤ 3322 次）</td><td>二分查找、倍增跳表</td></tr>
+    <tr><td><code>O(n)</code></td><td>线性</td><td>约 10⁸</td><td>❌ 读入都读不完</td><td>一次扫描、前缀和、约瑟夫递推</td></tr>
+    <tr><td><code>O(n log n)</code></td><td>线性对数</td><td>约 5×10⁶</td><td>❌</td><td>归并/快排、ST 表、Dijkstra</td></tr>
+    <tr><td><code>O(n√n)</code></td><td>根号级</td><td>约 2×10⁵</td><td>❌</td><td>莫队算法、分块</td></tr>
+    <tr><td><code>O(n²)</code></td><td>平方</td><td>约 10⁴</td><td>❌</td><td>朴素 DP、插入排序、Havel–Hakimi</td></tr>
+    <tr><td><code>O(n³)</code></td><td>立方</td><td>约 460</td><td>❌</td><td>Floyd、区间 DP</td></tr>
+    <tr><td><code>O(2ⁿ)</code></td><td>指数</td><td>约 26</td><td>❌（2ⁿ 远大于 10¹⁰⁰⁰ 只需 n≈3322）</td><td>位掩码子集枚举、TSP 状压</td></tr>
+    <tr><td><code>O(n!)</code></td><td>阶乘</td><td>约 12</td><td>❌</td><td>全排列暴力</td></tr>
+  </tbody>
+</table>
+
+<h2>应用与局限</h2>
+
+<p>复杂度是<strong>上界估计</strong>而不是精确耗时：同为 O(n) 的算法常数可相差几十倍；访问模式影响缓存命中率（按行遍历二维数组远快于按列）；语言本身亦有数量级差异（C++ 对 Python 约 10~100 倍）。因此估算时通常把 10⁸ 视为 C++ 秒级时限下「基本操作」的标尺，Python 需再除以 10~100。竞赛中常见的做法是<strong>由数据范围反推可行复杂度</strong>：</p>
+
+<table>
+  <thead><tr><th>数据范围 n ≤</th><th>可接受复杂度（约）</th><th>常见考点</th></tr></thead>
+  <tbody>
+    <tr><td>10 ~ 20</td><td>O(2ⁿ)、O(n!)</td><td>子集枚举、状压 DP、全排列搜索</td></tr>
+    <tr><td>100 ~ 500</td><td>O(n³)</td><td>区间 DP、Floyd</td></tr>
+    <tr><td>10³ ~ 10⁴</td><td>O(n²)</td><td>朴素 DP、双重循环枚举</td></tr>
+    <tr><td>10⁵ ~ 10⁶</td><td>O(n log n)</td><td>排序、树状数组、最短路</td></tr>
+    <tr><td>10⁷ ~ 10⁸</td><td>O(n)</td><td>线性扫描、前缀和、单调栈</td></tr>
+  </tbody>
+</table>
+
+<div class="admonition info">
+<div class="admonition-title">参考</div>
+<p><a href="https://oi-wiki.org/complexity/" target="_blank" rel="noopener">OI Wiki：复杂度分析</a>；Introduction to Algorithms 第 3 章。</p>
+</div>
+
+</main>
+
+<script src="../assets/nav.js" data-base="../"></script>
+<script src="../assets/viz.js"></script>
+<script>
+(function () {
+  var barsEl = document.getElementById("bars");
+  var bars2El = document.getElementById("bars2");
+  var steps = [];
+  var steps2 = [];
+  var runner = null;
+  var runner2 = null;
+
+  var SUP = { "0": "⁰", "1": "¹", "2": "²", "3": "³", "4": "⁴",
+              "5": "⁵", "6": "⁶", "7": "⁷", "8": "⁸", "9": "⁹" };
+  function sup(num) { return String(num).replace(/\d/g, function (c) { return SUP[c]; }); }
+
+  // ---- 数值格式化：10⁸ 次运算/秒估算 ----
+  function isInt(v) { return Math.abs(v - Math.round(v)) < 1e-9; }
+  function fmtVal(v) {
+    if (v < 1000) return isInt(v) ? String(Math.round(v)) : String(Math.round(v * 10) / 10);
+    if (v < 9e15 && isInt(v)) return String(Math.round(v));       // 安全整数范围内：精确整数
+    var e = Math.floor(Math.log(v) / Math.LN10);                  // 否则科学计数法（阶乘用累乘近似）
+    var m = v / Math.pow(10, e);
+    return (Math.round(m * 100) / 100).toFixed(2) + "×10" + sup(e);
+  }
+  function fmtTime(v) {
+    var t = v / 1e8;
+    if (t < 0.001) return "瞬间";
+    if (t < 1) return "约 " + Math.round(t * 1000) + " 毫秒";
+    if (t < 60) return "约 " + (Math.round(t * 10) / 10) + " 秒";
+    if (t < 3600) return "约 " + Math.round(t / 60) + " 分钟";
+    if (t < 86400) return "约 " + (Math.round(t / 36) / 100) + " 小时";
+    if (t < 3.15e7) return "约 " + Math.round(t / 86400) + " 天";
+    if (t < 4.35e17) return "约 " + Math.round(t / 3.15e7) + " 年，远超时限";
+    return "超过宇宙年龄（约 4.3×10¹⁷ 秒），算不完";
+  }
+  function judge(v) { return v <= 1e8 ? 0 : (v <= 1e10 ? 1 : 2); }
+
+  // ---- 面板 1：增长阶对比 ----
+  function fact(n) { var r = 1; for (var k = 2; k <= n; k++) r *= k; return r; }
+  var FUNCS = [
+    { name: "log₂n",   f: function (n) { return Math.log(n) / Math.LN2; } },
+    { name: "n",       f: function (n) { return n; } },
+    { name: "n·log₂n", f: function (n) { return n * Math.log(n) / Math.LN2; } },
+    { name: "n²",      f: function (n) { return n * n; } },
+    { name: "2ⁿ",      f: function (n) { return Math.pow(2, n); } },
+    { name: "n!",      f: fact }
+  ];
+  var STAGES = [2, 4, 8, 12, 16, 20, 24, 26];
+
+  function valuesOf(n) {
+    var v = [];
+    for (var i = 0; i < FUNCS.length; i++) v.push(FUNCS[i].f(n));
+    return v;
+  }
+
+  function buildSteps() {
+    var out = [];
+    out.push({ n: STAGES[0], vals: valuesOf(STAGES[0]), states: null,
+      msg: "基态：n = " + STAGES[0] + "，六个函数 f(n) 的取值如条形图所示（条高按 log₁₀ f(n) 对数尺度，条上为真实数值）。点击「播放」逐步增大 n。" });
+    for (var s = 0; s < STAGES.length; s++) {
+      var n = STAGES[s];
+      var vals = valuesOf(n);
+      var states = [];
+      for (var i = 0; i < vals.length; i++) states.push(judge(vals[i]));
+      var msg = "n = " + n + "：log₂n = " + fmtVal(vals[0]) +
+        "，n·log₂n ≈ " + fmtVal(vals[2]) +
+        "，n² = " + fmtVal(vals[3]) + "（" + fmtTime(vals[3]) + "）" +
+        "，2ⁿ ≈ " + fmtVal(vals[4]) + "（" + fmtTime(vals[4]) + "）" +
+        "，" + n + "! ≈ " + fmtVal(vals[5]) + "（" + fmtTime(vals[5]) + "）。";
+      if (s === STAGES.length - 1) {
+        msg += " 对比完成 ✅：n = " + n + " 时 n² 仍瞬间可算，2ⁿ 已逼近时限，n! 完全不可行。";
+      }
+      out.push({ n: n, vals: vals, states: states, msg: msg });
+    }
+    return out;
+  }
+
+  function draw(step) {
+    var sv = step || steps[0];
+    if (!sv) return;
+    var maxv = sv.vals[0];
+    for (var i = 1; i < sv.vals.length; i++) if (sv.vals[i] > maxv) maxv = sv.vals[i];
+    var denom = Math.log(maxv + 1) / Math.LN10;
+    if (!(denom > 0)) denom = 1;
+    var html = "";
+    for (var k = 0; k < sv.vals.length; k++) {
+      var v = sv.vals[k];
+      var h = Math.round(10 + 170 * (Math.log(v + 1) / Math.LN10) / denom);
+      var cls = "bar fnbar";
+      if (sv.states) cls += sv.states[k] === 0 ? " done" : (sv.states[k] === 1 ? " comparing" : " swapping");
+      html += '<div class="' + cls + '" style="height:' + h + 'px">' +
+        '<span class="bar-val">' + fmtVal(v) + '</span>' +
+        '<span class="bar-idx">' + FUNCS[k].name + "</span></div>";
+    }
+    barsEl.innerHTML = html;
+  }
+
+  // ---- 面板 2：暴力 vs 前缀和（操作次数） ----
+  function buildQueries(n) {
+    // 生成 n 次区间询问，尽量让暴力扫描总操作数显著大于 2n
+    for (var tries = 0; tries < 60; tries++) {
+      var qs = [], total = 0;
+      for (var i = 0; i < n; i++) {
+        var l = SV.randInt(1, n);
+        var r = SV.randInt(l, n);
+        qs.push([l, r]);
+        total += r - l + 1;
+      }
+      if (total >= n * n / 4 + 3 * n) return { qs: qs, total: total };
+    }
+    var qs2 = [], t2 = 0;
+    for (var j = 0; j < n; j++) {
+      var l2 = 1, r2 = Math.min(n, l2 + Math.floor(n / 2));
+      qs2.push([l2, r2]); t2 += r2 - l2 + 1;
+    }
+    return { qs: qs2, total: t2 };
+  }
+
+  var STAGES2 = [5, 10, 15, 20, 30, 40];
+
+  function buildSteps2() {
+    var stages = [];
+    var maxOps = 1;
+    for (var s = 0; s < STAGES2.length; s++) {
+      var n = STAGES2[s];
+      var q = buildQueries(n);
+      var prefix = 2 * n;
+      stages.push({ n: n, total: q.total, prefix: prefix, sp: q.total / prefix });
+      if (q.total > maxOps) maxOps = q.total;
+    }
+    var out = [];
+    out.push({ st: null, maxOps: maxOps,
+      msg: "基态：横轴为同一 n 下的暴力枚举与前缀和。任务：回答 n 次区间和询问。点击「播放」逐步增大 n（每次询问的区间随机）。" });
+    for (var k = 0; k < stages.length; k++) {
+      var st = stages[k];
+      out.push({ st: st, maxOps: maxOps,
+        msg: "n = " + st.n + "：" + st.n + " 次询问，暴力逐段扫描累加共 " + st.total +
+          " 次加法（随 n 平方增长）；前缀和预处理 " + st.n + " 次加法 + " + st.n +
+          " 次减法 = " + st.prefix + " 次（线性）。加速约 " + (Math.round(st.sp * 10) / 10) + " 倍。" });
+    }
+    var last = stages[stages.length - 1];
+    out.push({ st: last, maxOps: maxOps,
+      msg: "对比完成 ✅：n = " + last.n + " 时暴力需 " + last.total + " 次操作，前缀和仅 " + last.prefix +
+        " 次，相差 " + (Math.round(last.sp * 10) / 10) +
+        " 倍；n 越大差距越大——这正是 O(n²) 与 O(n) 的区别。" });
+    return out;
+  }
+
+  function draw2(step) {
+    var sv = step || steps2[0];
+    if (!sv) return;
+    var html = "";
+    if (!sv.st) {
+      html = '<div class="bar" style="height:10px"><span class="bar-val">—</span><span class="bar-idx">暴力 O(n²)</span></div>' +
+             '<div class="bar" style="height:10px"><span class="bar-val">—</span><span class="bar-idx">前缀和 O(n)</span></div>';
+    } else {
+      var hn = Math.round(10 + 170 * sv.st.total / sv.maxOps);
+      var hp = Math.round(10 + 170 * sv.st.prefix / sv.maxOps);
+      html = '<div class="bar comparing" style="height:' + hn + 'px"><span class="bar-val">' + sv.st.total +
+        '</span><span class="bar-idx">暴力 n=' + sv.st.n + "</span></div>" +
+        '<div class="bar done" style="height:' + hp + 'px"><span class="bar-val">' + sv.st.prefix +
+        '</span><span class="bar-idx">前缀和 n=' + sv.st.n + "</span></div>";
+    }
+    bars2El.innerHTML = html;
+  }
+
+  function restart1() {
+    steps = buildSteps();
+    if (!runner) {
+      runner = SV.runner({
+        host: document.getElementById("runner1"),
+        msgEl: document.getElementById("msg1"),
+        steps: steps,
+        render: draw
+      });
+    } else {
+      runner.setSteps(steps);
+      draw(null);
+    }
+  }
+
+  function restart2() {
+    steps2 = buildSteps2();
+    if (!runner2) {
+      runner2 = SV.runner({
+        host: document.getElementById("runner2"),
+        msgEl: document.getElementById("msg2"),
+        steps: steps2,
+        render: draw2
+      });
+    } else {
+      runner2.setSteps(steps2);
+      draw2(null);
+    }
+  }
+
+  document.getElementById("btnQueries").addEventListener("click", restart2);
+  restart1();
+  restart2();
+})();
+</script>
+</body>
+</html>

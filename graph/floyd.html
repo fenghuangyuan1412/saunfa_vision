@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Floyd 多源最短路 - Saunfa Vision</title>
+<link rel="stylesheet" href="../assets/style.css">
+<style>
+.g-wrap { display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-start; }
+.g-svg { flex: 0 0 auto; }
+.g-svg svg { display: block; }
+.g-svg text { font-family: -apple-system, "Segoe UI", Roboto, "Noto Sans SC", sans-serif; }
+.g-side { min-width: 300px; flex: 1; }
+.box-label { font-size: 12.5px; color: var(--md-text-light); font-weight: 700; display: block; margin-bottom: 6px; }
+.sv-content table.mat { width: auto; margin: 0 0 10px; font-size: 12px; border-collapse: collapse; }
+.sv-content table.mat th, .sv-content table.mat td { padding: 2px 0; width: 40px; min-width: 40px; text-align: center; }
+.sv-content table.mat th { background: rgba(64,81,181,.07); }
+.sv-content table.mat td.c-default { background: #fff; color: #222; }
+.sv-content table.mat td.c-comparing { background: var(--viz-comparing); color: #222; font-weight: 700; }
+.sv-content table.mat td.c-swapping { background: var(--viz-swapping); color: #fff; font-weight: 700; }
+.sv-content table.mat td.c-done { background: var(--viz-done); color: #fff; font-weight: 700; }
+.sv-content table.mat td.c-eliminated { background: var(--viz-eliminated); color: rgba(0,0,0,.4); }
+.sv-content table.mat td.c-active { background: rgba(64,81,181,.16); color: var(--viz-active); font-weight: 700; }
+.sv-content table.mat td.ch { background: rgba(64,81,181,.3); color: var(--viz-active); font-weight: 700; }
+.sv-content table.mat td.inf { color: #9e9e9e; }
+.note { font-size: 12.5px; color: var(--md-text-light); }
+</style>
+</head>
+<body data-page="graph/floyd">
+<main class="sv-content">
+
+<h1>Floyd 多源最短路</h1>
+
+<p><strong>Floyd（Floyd–Warshall）算法</strong>用一个 <code>O(n³)</code> 的三层循环求出<strong>任意两点</strong>之间的最短距离——即<strong>多源最短路</strong>（All-Pairs Shortest Path）。它是一次纯粹的<strong>动态规划</strong>：状态是「允许哪些点作中转」，转移是「经不经这个中转点」，代码只有三行，还能直接处理负权边（只要没有负环）。</p>
+
+<h2>算法原理</h2>
+
+<p>把结点编号取为 <code>1..n</code>。定义状态：</p>
+
+<div class="admonition example">
+<div class="admonition-title">状态定义（关键）</div>
+<p><code>d[k][i][j]</code> = 「<strong>只允许经过编号 ≤ k 的结点作为中转</strong>」时，<code>i → j</code> 的最短路径长度。最终答案 <code>d[n][i][j]</code> 允许一切中转点，就是真正的全源最短路。</p>
+</div>
+
+<p>考虑从 <code>i</code> 到 <code>j</code> 且中转点上限为 <code>k</code> 的最短路，只有两种可能：<strong>不经过 k</strong>（值即 <code>d[k-1][i][j]</code>），或者<strong>经过 k</strong>。由于除了 k 之外的中转点都 ≤ k−1，且最短路是简单路径，这条路的「<code>i → k</code>」段与「<code>k → j</code>」段各自也是「中转点 ≤ k−1」意义下的最短路，于是可以用 <code>d[k-1][i][k] + d[k-1][k][j]</code> 表示。取min 即得转移。因为第 <code>k</code> 层只依赖第 <code>k−1</code> 层，滚动掉第一维就成了常见的就地写法：</p>
+
+<pre><code>for i in 1..n:
+    for j in 1..n:
+        d[i][j] = (i = j ? 0 : 直接边权或 +∞)
+
+for k in 1..n:                        // 中转点上界：必须放在最外层！
+    for i in 1..n:
+        for j in 1..n:
+            d[i][j] = min(d[i][j], d[i][k] + d[k][j])</code></pre>
+
+<h3>为什么 k 必须在最外层</h3>
+
+<p>正确性依赖一个不变式：<strong>进入第 <code>k</code> 轮时，矩阵里存的正是「中转点集合 ⊆ {1..k−1}」的最短路</strong>。只有把 <code>k</code> 放在最外层，一整轮才只引入「新允许的那个中转点 k」，且 <code>d[i][k]</code>、<code>d[k][j]</code> 本身在本轮内不会再被 k 改进（<code>d[k][k]=0</code> 且边权非负时它们不变），转移才是干净的。若把 <code>k</code> 写到内层，<code>d[i][k]</code> 可能已经被「比 k 更大的中转点」改进过，等于偷偷允许了尚未轮到的点作中转，结果会偏小或漏更新——除非你把 <code>i、j、k</code> 三个循环都跑满 <code>n</code> 遍，而那已经失去意义。这也是本页动画按「一层一整轮」推进的原因。</p>
+
+<h3>可重复贡献与传递闭包</h3>
+
+<p>Floyd 的本质是<strong>闭包运算</strong>：把 <code>(min, +)</code> 换成 <code>(|, ×)</code>（逻辑或、逻辑与），初始矩阵换成邻接矩阵（<code>i→j</code> 有边即 1，<code>i=j</code> 记 1），同样的三重循环就得到<strong>传递闭包</strong>——即「<code>i</code> 能否到达 <code>j</code>」。这就是 <strong>Warshall 算法</strong>。因为运算是「可重复贡献」的（<code>x ⊗ x = x</code>），中途被就地覆盖也不会出错。把内层的布尔矩阵按行存成 <code>bitset</code>，<code>d[i][k]</code> 为真时只需一次「整行或起来」，<code>O(n³/64)</code> 即可求出闭包，n 上千也还能跑。</p>
+
+<pre><code>// 传递闭包（Warshall）：可达记 1
+for k in 1..n:
+    for i in 1..n:
+        if reach[i][k]:
+            for j in 1..n:
+                reach[i][j] |= reach[k][j]      // bitset 优化：reach[i] |= reach[k]</code></pre>
+
+<div class="admonition tip">
+<div class="admonition-title">提示：什么时候选 Floyd</div>
+<p>① <strong>n ≤ 400 量级</strong>且需要<strong>任意两点</strong>的答案（三角不等式校验、图中直径、"是否共圆/可达"判定、DP 转移里要频繁查两点距离）。跑 n 次堆优化 Dijkstra 是 <code>O(n(n+m)\log n)</code>，稀疏图上更快但拿不到「路径上经过哪些中转点」这一层信息。② <strong>负权边可以直接处理</strong>（比 SPFA 更好写），只要先检查 <code>d[i][i] &lt; 0</code> 判负环：跑完后对角线出现负数即说明 <code>i</code> 在某个负环上。③ 常用扩展：Floyd 求<strong>必经点</strong>（<code>d[s][t] == d[s][u]+d[u][t]</code> 则 u 在一条最短路上）、<strong>最小环</strong>（枚举 k 前用 <code>d[i][j]+w[i][k]+w[k][j]</code> 求经过 &lt;k 的环）、<strong>倍增 Floyd</strong>（矩阵乘法 + 倍增求恰好/不超过 L 步最短路）。</p>
+</div>
+
+<h2>可视化演示</h2>
+
+<p>左图是一张 <strong>n=5 的有向带权图</strong>，右侧是距离矩阵 <code>d</code>（<code>∞</code> 表示中转限制下尚不可达）。动画按 <code>k = 1 → 5</code> 逐轮推进：每轮开始先把「第 k 行 + 第 k 列」标淡蓝（它们正是本轮的取值来源），然后只给出<strong>真的发生改进</strong>的格子（橙=正在比较、红=更新的那一下、绿=本轮改进过的格子）；<strong>无改进的检查会被合并跳过</strong>，每轮结束时用小结步报告「检查多少格、更新多少格」并举一个未更新的例子。演示允许随机删边，因此结果中常保留 <code>∞</code>。</p>
+
+<div class="viz-panel">
+  <div class="viz-stage">
+    <div class="g-wrap">
+      <div class="g-svg" id="gsvg"></div>
+      <div class="g-side">
+        <span class="box-label">距离矩阵 d[i][j]（行 = 起点 i，列 = 终点 j）</span>
+        <table class="mat" id="matTbl"></table>
+        <div class="note" id="matNote"></div>
+      </div>
+    </div>
+  </div>
+  <div class="viz-msg" id="msg"></div>
+  <div class="viz-legend">
+    <span class="chip"><span class="sw" style="background:var(--viz-default)"></span>未参与 / 直接边</span>
+    <span class="chip"><span class="sw" style="background:rgba(64,81,181,.16)"></span>本轮中转点 k 所在行列</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-comparing)"></span>正在比较的格子 / 相关边</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-swapping)"></span>被更新的那一下</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-done)"></span>本轮改进 / 最终结果</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-eliminated)"></span>不可达（∞）</span>
+  </div>
+  <div id="runner"></div>
+  <div class="viz-controls">
+    <button id="btnRand" class="viz-btn">🎲 随机新图</button>
+    <span class="note">矩阵按 k 轮逐步改进；n=5 时共 5×5×5 = 125 次检查，多数无改进已合并。</span>
+  </div>
+</div>
+
+<h2>复杂度分析</h2>
+
+<table>
+  <thead><tr><th>指标</th><th>量级</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td>时间</td><td><code>O(n³)</code></td><td>三层循环各 n 次；转移只有比较与加法，常数极小</td></tr>
+    <tr><td>空间</td><td><code>O(n²)</code></td><td>一个距离矩阵即可（就地滚动第一维）；要还原路径需额外 <code>nxt[i][j]</code>，仍是 <code>O(n²)</code></td></tr>
+    <tr><td>适用规模</td><td colspan="2"><code>n ≈ 400</code> 以内（约 6×10⁷ 次基本操作）；<code>n</code> 更大而只需单源时改用 Dijkstra / SPFA</td></tr>
+    <tr><td>边权要求</td><td colspan="2">可有<strong>负权边</strong>；不得有<strong>负环</strong>（跑完后 <code>d[i][i] &lt; 0</code> 即说明 i 在负环上）</td></tr>
+    <tr><td>传递闭包变体</td><td><code>O(n³ / 64)</code></td><td>把 <code>+ / min</code> 换成 <code>× / |</code>（Warshall），行用 <code>bitset</code> 存储后按位或</td></tr>
+  </tbody>
+</table>
+
+<h2>应用与局限</h2>
+
+<p><strong>应用</strong>：① 需要在图上频繁查询「两点最短距离」的题目（把图预处理成距离矩阵后查询 <code>O(1)</code>）；② 判定<strong>可达性 / 传递闭包</strong>（偏序关系的闭包、正则闭包、依赖关系推导）；③ 求<strong>图的直径</strong>、<strong>最小环</strong>、<strong>必经点</strong>；④ 差分/建图技巧中的「先 Floyd 补全三角不等式再 DP」（如最短路约束下的 TSP 预处理）；⑤ <strong>倍增 Floyd</strong>——把转移写成 min-plus 矩阵乘法，用快速幂求「恰好走 L 步」的最短路。</p>
+
+<p><strong>局限</strong>：① <code>O(n³)</code> 对稀疏大图不可接受，<code>n &gt; 500</code> 基本不能再用；② 存在<strong>负环</strong>时距离无定义，只能给出「负环上 <code>d[i][i] &lt; 0</code>」的判定；③ 需要 <code>O(n²)</code> 的邻接矩阵存图，点编号必须先压缩到 <code>1..n</code>；④ 三层循环的访问顺序对缓存敏感，工程上常把 <code>k</code> 放最外层（本页写法）并考虑分块。</p>
+
+<div class="admonition info">
+<div class="admonition-title">参考</div>
+<p><a href="https://oi-wiki.org/graph/shortest-path/" target="_blank" rel="noopener">OI Wiki — 最短路问题（Floyd 及传递闭包）</a>；Introduction to Algorithms 第 25.1 节（动态规划求所有点对最短路）；同站姊妹页：<a href="dijkstra.html">Dijkstra 最短路</a>、<a href="spfa.html">Bellman-Ford 与 SPFA</a>。</p>
+</div>
+
+</main>
+
+<script src="../assets/nav.js" data-base="../"></script>
+<script src="../assets/viz.js"></script>
+<script>
+(function () {
+  var svgEl = document.getElementById("gsvg");
+  var tblEl = document.getElementById("matTbl");
+  var noteEl = document.getElementById("matNote");
+  var runner = null;
+  var steps = [];
+
+  var INF = 1e15;
+  var N = 5;
+  var IDS = [1, 2, 3, 4, 5];
+  var POS = { 1: [170, 42], 2: [279, 120], 3: [238, 248], 4: [102, 248], 5: [61, 120] };
+  var W = 342, H = 300, R = 17;
+  var COL = {
+    "default": "var(--viz-default)", "comparing": "var(--viz-comparing)", "swapping": "var(--viz-swapping)",
+    "active": "var(--viz-active)", "done": "var(--viz-done)", "eliminated": "var(--viz-eliminated)"
+  };
+
+  function fmt(d) { return d >= INF ? "∞" : (d < 0 ? "−" + (-d) : String(d)); }
+  function cellOf(m, i, j) { return m[i - 1][j - 1]; }
+  function opOf(a, b) { return a < b ? " &lt; " : (a === b ? " = " : " ≥ "); }
+
+  function genGraph() {
+    var g = [], u, v;
+    for (u = 1; u <= N; u++) {
+      for (v = u + 1; v <= N; v++) {
+        var r = Math.random();
+        if (r < 0.22) continue;                    // 这一对之间没有边
+        var a = r < 0.61 ? u : v;                   // r ∈ [0.22,0.61) → u→v
+        var b = a === u ? v : u;
+        g.push({ a: a, b: b, w: SV.randInt(1, 9) });
+      }
+    }
+    if (g.length < 5) return genGraph();            // 至少几条边，避免空图
+    return g;
+  }
+
+  function zeroStates(n) {
+    var m = [], i, j;
+    for (i = 0; i < n; i++) { m[i] = []; for (j = 0; j < n; j++) m[i][j] = "default"; }
+    return m;
+  }
+  function copyStates(m) {
+    var r = [], i;
+    for (i = 0; i < m.length; i++) r[i] = m[i].slice();
+    return r;
+  }
+
+  function buildSteps(g) {
+    var out = [];
+    var d = [], i, j, k;
+    for (i = 0; i < N; i++) { d[i] = []; for (j = 0; j < N; j++) d[i][j] = i === j ? 0 : INF; }
+    for (k = 0; k < g.length; k++) {
+      var e = g[k];
+      if (e.w < cellOf(d, e.a, e.b)) d[e.a - 1][e.b - 1] = e.w;
+    }
+    var cst = zeroStates(N);      // 单元格状态
+    var nst = {}, est = [];
+    for (i = 0; i < N; i++) nst[IDS[i]] = "default";
+    for (i = 0; i < g.length; i++) est.push("default");
+    var curK = 0;
+
+    function snap(msg) {
+      var dd = [], a;
+      for (a = 0; a < N; a++) dd[a] = d[a].slice();
+      out.push({
+        d: dd, cst: copyStates(cst), nst: copyObj(nst), est: est.slice(),
+        g: g, k: curK, msg: msg
+      });
+    }
+    function copyObj(o) { var r = {}, a; for (a = 0; a < N; a++) r[IDS[a]] = o[IDS[a]]; return r; }
+    function clearCells() { cst = zeroStates(N); }
+    function clearEdges() { for (var a = 0; a < g.length; a++) est[a] = "default"; }
+
+    var ws = [];
+    for (k = 0; k < g.length; k++) ws.push(g[k].a + "→" + g[k].b + ":" + g[k].w);
+    snap("有向图 n=" + N + "，边：" + ws.join("，") + "。初始矩阵 d[i][j] = 直接边权（i=j 记 0，没有直接边记 ∞）。" +
+      "状态含义：第 k 轮开始时矩阵存的是「只允许经过编号 ≤ k−1 的点作中转」的最短路，转移 d[i][j]=min(d[i][j], d[i][k]+d[k][j])。");
+
+    var grandUpdates = 0, grandChecks = 0;
+    for (k = 1; k <= N; k++) {
+      curK = k;
+      clearCells();
+      clearEdges();
+      for (i = 1; i <= N; i++) {
+        cst[k - 1][i - 1] = "active";     // 第 k 行（i,k）
+        cst[i - 1][k - 1] = "active";     // 第 k 列（k,i）
+      }
+      for (i = 0; i < N; i++) nst[IDS[i]] = "default";
+      nst[k] = "active";
+      for (var q = 0; q < g.length; q++) {
+        if (g[q].a === k || g[q].b === k) est[q] = "comparing";
+      }
+      snap("<b>进入第 k=" + k + " 轮</b>：本轮新允许的中转点是 " + k + "。对所有 (i,j) 检查「经 " + k +
+        " 是否更短」，即比较 d[i][j] 与 d[i][" + k + "]+d[" + k + "][j]。淡蓝的第 " + k + " 行、第 " + k +
+        " 列即本轮所有取值的来源（跳过 i=" + k + " 或 j=" + k + " 的格子，它们不可能被改进）。");
+
+      var upd = 0, checks = 0, noEx = [], changed = [];
+      for (i = 1; i <= N; i++) {
+        for (j = 1; j <= N; j++) {
+          if (i === k || j === k || i === j) continue;
+          checks++;
+          var dik = cellOf(d, i, k), dkj = cellOf(d, k, j), old = cellOf(d, i, j);
+          if (dik >= INF || dkj >= INF) {
+            if (noEx.length < 2) noEx.push("d[" + i + "][" + j + "]=" + fmt(old) + "：d[" + i + "][" + k + "]=" + fmt(dik) +
+              " 或 d[" + k + "][" + j + "]=" + fmt(dkj) + " 不可达，无法经 " + k + " 中转，保持 " + fmt(old));
+            continue;
+          }
+          var cand = dik + dkj;
+          if (cand < old) {
+            clearCells();
+            for (var h = 1; h <= N; h++) { cst[k - 1][h - 1] = "active"; cst[h - 1][k - 1] = "active"; }
+            cst[i - 1][k - 1] = "comparing"; cst[k - 1][j - 1] = "comparing";
+            cst[i - 1][j - 1] = "swapping";
+            clearEdges();
+            for (var q2 = 0; q2 < g.length; q2++) {
+              if (g[q2].a === k || g[q2].b === k) est[q2] = "comparing";
+            }
+            for (var h2 = 0; h2 < N; h2++) nst[IDS[h2]] = "default";
+            nst[k] = "active"; nst[i] = "comparing"; nst[j] = "comparing";
+            d[i - 1][j - 1] = cand;
+            upd++;
+            grandUpdates++;
+            changed.push(i + "," + j);
+            snap("<b>更新</b> d[" + i + "][" + j + "]：原 = " + fmt(old) + "；经 " + k + " 中转 d[" + i + "][" + k + "]+d[" + k + "][" + j +
+              "] = " + dik + "+" + dkj + " = " + cand + opOf(cand, old) + fmt(old) + " → <b>d[" + i + "][" + j + "] = " + cand +
+              "</b>（红＝刚被改；蓝格是取值的两段）。");
+          } else if (noEx.length < 2) {
+            noEx.push("d[" + i + "][" + j + "]=" + fmt(old) + "：经 " + k + " 为 " + dik + "+" + dkj + " = " + cand +
+              opOf(cand, old) + fmt(old) + "，保持 " + fmt(old));
+          }
+        }
+      }
+      grandChecks += checks;
+      // 本轮小结：把本轮改进过的格子标绿
+      clearCells();
+      clearEdges();
+      for (h = 1; h <= N; h++) { cst[k - 1][h - 1] = "active"; cst[h - 1][k - 1] = "active"; }
+      for (var c2 = 0; c2 < changed.length; c2++) {
+        var pp = changed[c2].split(",");
+        cst[Number(pp[0]) - 1][Number(pp[1]) - 1] = "done";
+      }
+      for (h2 = 0; h2 < N; h2++) nst[IDS[h2]] = "default";
+      nst[k] = "done";
+      snap("<b>k=" + k + " 轮结束</b>：本轮检查 " + checks + " 格，改进 " + upd + " 格" +
+        (changed.length ? "（" + changed.join("；") + "，绿）" : "（无改进）") +
+        "，其余 " + (checks - upd) + " 次检查已合并跳过。例：" + (noEx.length ? noEx.join("；例 ") : "无未更新的例子") +
+        "。矩阵快照（只允许中转点 ≤ " + k + "）：" + (function () {
+          var a = [];
+          for (var r2 = 1; r2 <= N; r2++) { var row = []; for (var c3 = 1; c3 <= N; c3++) row.push(fmt(cellOf(d, r2, c3))); a.push("第" + r2 + "行[" + row.join(" ") + "]"); }
+          return " " + a.join(" ");
+        })());
+    }
+
+    // 终局
+    curK = 0;
+    clearCells();
+    clearEdges();
+    for (i = 0; i < N; i++) {
+      nst[IDS[i]] = "default";
+      for (j = 0; j < N; j++) {
+        cst[i][j] = d[i][j] >= INF ? "eliminated" : "done";
+      }
+    }
+    var finite = [], infPairs = [];
+    for (i = 1; i <= N; i++) for (j = 1; j <= N; j++) {
+      if (i === j) continue;
+      if (cellOf(d, i, j) >= INF) infPairs.push(i + "→" + j);
+      else finite.push(i + "→" + j + "=" + cellOf(d, i, j));
+    }
+    snap("全源最短路完成 ✅ 转移 <b>d[i][j]=min(d[i][j], d[i][k]+d[k][j])</b> 跑完 k=1.." + N +
+      "，共检查 " + grandChecks + " 次、真正更新 " + grandUpdates + " 次。例：" +
+      (finite.length ? "<b>" + finite[0] + "</b>（如 " + finite[Math.min(1, finite.length - 1)] + "）" : "没有可达点对") +
+      (infPairs.length ? "；<b>" + infPairs[0] + "</b> = ∞（不可达，标灰）" : "；任意两点都可达，矩阵无 ∞") +
+      "。绿＝有限最短距离，灰＝∞。全部可达点对：" + (finite.length ? finite.join("，") : "（无）") + "。");
+    return out;
+  }
+
+  function drawGraph(s) {
+    var html = '<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + " " + H + '">';
+    html += '<defs>' +
+      '<marker id="fh-default" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" style="fill:#9fa8da"/></marker>' +
+      '<marker id="fh-comparing" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" style="fill:var(--viz-comparing)"/></marker>' +
+      '<marker id="fh-active" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" style="fill:var(--viz-active)"/></marker>' +
+      '<marker id="fh-done" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" style="fill:var(--viz-done)"/></marker>' +
+      "</defs>";
+    var i;
+    for (i = 0; i < s.g.length; i++) {
+      var e = s.g[i], st = s.est[i] || "default";
+      var a = POS[e.a], b = POS[e.b];
+      var dx = b[0] - a[0], dy = b[1] - a[1];
+      var L = Math.sqrt(dx * dx + dy * dy) || 1;
+      var ux = dx / L, uy = dy / L;
+      html += '<line x1="' + (a[0] + ux * (R + 1)).toFixed(1) + '" y1="' + (a[1] + uy * (R + 1)).toFixed(1) +
+        '" x2="' + (b[0] - ux * (R + 9)).toFixed(1) + '" y2="' + (b[1] - uy * (R + 9)).toFixed(1) +
+        '" style="stroke:' + (st === "default" ? "#9fa8da" : COL[st]) + ';stroke-width:' + (st === "default" ? 1.7 : 3) +
+        '" marker-end="url(#fh-' + st + ')"/>';
+    }
+    for (i = 0; i < s.g.length; i++) {
+      var e3 = s.g[i], st3 = s.est[i] || "default";
+      var p = POS[e3.a], q = POS[e3.b];
+      var mx = p[0] + (q[0] - p[0]) * 0.34, my = p[1] + (q[1] - p[1]) * 0.34;
+      html += '<rect x="' + (mx - 9) + '" y="' + (my - 9) + '" width="18" height="17" rx="3" style="fill:#fff;stroke:' +
+        (st3 === "default" ? "#d0d0d0" : COL[st3]) + ';stroke-width:1"/>';
+      html += '<text x="' + mx + '" y="' + (my + 4) + '" text-anchor="middle" font-size="11.5" font-weight="700" style="fill:' +
+        (st3 === "default" ? "#5f5f5f" : (st3 === "comparing" ? "#222" : "#2e7d32")) + '">' + e3.w + "</text>";
+    }
+    for (i = 0; i < IDS.length; i++) {
+      var id = IDS[i], stn = s.nst[id] || "default";
+      var pp = POS[id];
+      var tc = (stn === "default" || stn === "eliminated" || stn === "comparing") ? "#222" : "#fff";
+      html += '<circle cx="' + pp[0] + '" cy="' + pp[1] + '" r="' + R + '" style="fill:' + COL[stn] +
+        ';stroke:rgba(0,0,0,.3);stroke-width:' + (stn === "done" ? 3 : 1) + '"/>';
+      html += '<text x="' + pp[0] + '" y="' + (pp[1] + 5) + '" text-anchor="middle" font-size="13" font-weight="700" style="fill:' + tc + '">' + id + "</text>";
+    }
+    html += "</svg>";
+    svgEl.innerHTML = html;
+  }
+
+  function drawTable(s) {
+    var h = "<thead><tr><th>i \\ j</th>";
+    for (var j = 1; j <= N; j++) h += "<th>" + j + "</th>";
+    h += "</tr></thead><tbody>";
+    for (var i = 1; i <= N; i++) {
+      h += "<tr><th>" + i + "</th>";
+      for (j = 1; j <= N; j++) {
+        var st = s.cst[i - 1][j - 1] || "default";
+        var v = s.d[i - 1][j - 1];
+        h += '<td class="c-' + st + '">' + fmt(v) + "</td>";
+      }
+      h += "</tr>";
+    }
+    h += "</tbody>";
+    tblEl.innerHTML = h;
+    noteEl.innerHTML = s.k === 0
+      ? "当前中转上界：<b>全部 " + N + " 个点</b>（已收敛）。"
+      : "当前中转上界：<b>k = " + s.k + "</b>，即矩阵给出「只允许经过编号 ≤ " + s.k + " 的点作中转」的最短路。";
+  }
+
+  function draw(step) {
+    var s = step || steps[0];
+    if (!s) return;
+    drawGraph(s);
+    drawTable(s);
+  }
+
+  function restart() {
+    steps = buildSteps(genGraph());
+    if (!runner) {
+      runner = SV.runner({
+        host: document.getElementById("runner"),
+        msgEl: document.getElementById("msg"),
+        steps: steps,
+        render: draw
+      });
+    } else {
+      runner.setSteps(steps);
+      draw(null);
+    }
+  }
+
+  document.getElementById("btnRand").addEventListener("click", restart);
+  restart();
+})();
+</script>
+</body>
+</html>

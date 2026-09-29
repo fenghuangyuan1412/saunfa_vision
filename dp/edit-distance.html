@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>编辑距离 - Saunfa Vision</title>
+<link rel="stylesheet" href="../assets/style.css">
+<style>
+  table.dp { border-collapse: separate; border-spacing: 3px; font-size: 13px; }
+  table.dp td {
+    min-width: 40px; height: 36px; padding: 2px 3px; text-align: center; vertical-align: middle;
+    border: 1px solid rgba(0,0,0,.16); border-radius: 3px; background: var(--viz-default);
+    color: rgba(0,0,0,.45); font-weight: 700; line-height: 1.15;
+  }
+  table.dp td.hdr { background: rgba(64,81,181,.10); color: var(--md-primary); font-size: 12.5px; border-color: transparent; }
+  table.dp td.hdrcur { background: var(--viz-active); color: #fff; font-size: 12.5px; border-color: transparent; }
+  table.dp td.corner { background: #eceff1; color: var(--md-text-light); font-size: 11.5px; border-color: transparent; }
+  table.dp td.filled { background: rgba(67,160,71,.20); color: #1b5e20; }
+  table.dp td.bound { background: rgba(67,160,71,.20); color: #1b5e20; }
+  table.dp td.na { background: var(--viz-eliminated); color: rgba(0,0,0,.35); }
+  table.dp td.src { background: var(--viz-active); color: #fff; }
+  table.dp td.cur { background: var(--viz-comparing); color: #222; }
+  table.dp td.path { background: var(--viz-done); color: #fff; }
+  table.dp td .note { display: block; font-size: 9.5px; font-weight: 400; opacity: .92; }
+  .align-out { margin-top: 10px; font-size: 12.5px; color: var(--md-text-light); }
+  .align-out .ln { display: flex; gap: 4px; align-items: center; margin: 3px 0; }
+  .align-out .tag { width: 58px; font-weight: 700; color: var(--md-text-light); flex: none; }
+  .align-out .g {
+    width: 30px; height: 28px; display: flex; align-items: center; justify-content: center;
+    border: 1px solid rgba(0,0,0,.16); border-radius: 3px; background: #fff; font-weight: 700;
+  }
+  .align-out .g.same { background: var(--viz-done); color: #fff; }
+  .align-out .g.diff { background: var(--viz-swapping); color: #fff; }
+  .align-out .g.gap { background: var(--viz-eliminated); color: rgba(0,0,0,.4); }
+  .ops { margin-top: 8px; font-size: 13px; }
+  .ops li { margin: 2px 0; }
+  .panel-title { font-size: 13px; font-weight: 700; color: var(--md-primary); margin: 4px 0 6px; }
+  .sub-panel { margin-top: 14px; border-top: 1px dashed rgba(0,0,0,.15); padding-top: 10px; }
+</style>
+</head>
+<body data-page="dp/edit-distance">
+<main class="sv-content">
+
+<h1>编辑距离</h1>
+
+<p><strong>编辑距离</strong>（Levenshtein Distance）衡量把字符串 <code>A</code> 变成字符串 <code>B</code> 最少需要多少次单字符操作（插入、删除、替换）。它是二维 DP 的另一张经典表格，也是拼写纠错、模糊匹配、序列比对这些真实功能的核心度量。本页用 <code>A = book</code>、<code>B = back</code> 演示逐格填表与操作回溯。</p>
+
+<h2>算法原理</h2>
+
+<p>状态定义：<code>dp[i][j]</code> = 把 <code>A</code> 的前 <code>i</code> 个字符变成 <code>B</code> 的前 <code>j</code> 个字符所需的<strong>最少操作数</strong>（本页下标从 1 开始，<code>A[i]</code> 是第 <code>i</code> 个字符）。最后一次操作只可能落在三个位置之一，对应表格里的三个来源方向：</p>
+
+<ul>
+  <li><strong>删除 <code>A[i]</code></strong>：先花 <code>dp[i-1][j]</code> 把前 <code>i-1</code> 个变成 <code>B</code> 的前 <code>j</code> 个，再删掉 <code>A[i]</code>。→ 来源<strong>上方</strong>，代价 <code>+1</code>。</li>
+  <li><strong>插入 <code>B[j]</code></strong>：先花 <code>dp[i][j-1]</code> 把 <code>A</code> 的前 <code>i</code> 个变成 <code>B</code> 的前 <code>j-1</code> 个，再在末尾补一个 <code>B[j]</code>。→ 来源<strong>左方</strong>，代价 <code>+1</code>。</li>
+  <li><strong>替换 / 匹配</strong>：把 <code>A[i]</code> 改成 <code>B[j]</code>（相同则不改，代价 0），前 <code>i-1</code> 与前 <code>j-1</code> 已经对齐。→ 来源<strong>左上角</strong>，代价 <code>+ (A[i] != B[j] ? 1 : 0)</code>。</li>
+</ul>
+
+<p>边界很直白：<code>dp[i][0] = i</code>（把长度为 i 的串变成空串，只能全部删除）、<code>dp[0][j] = j</code>（从空串造出长度为 j 的串，只能全部插入）。按行从左到右填表即可，答案在 <code>dp[m][n]</code>。</p>
+
+<pre><code>procedure editDistance(A[1..m], B[1..n]):
+    for i = 0 to m: dp[i][0] = i           // 全部删除
+    for j = 0 to n: dp[0][j] = j           // 全部插入
+    for i = 1 to m:
+        for j = 1 to n:
+            del = dp[i-1][j] + 1                 // 删除 A[i]
+            ins = dp[i][j-1] + 1                 // 插入 B[j]
+            rep = dp[i-1][j-1] + (A[i] == B[j] ? 0 : 1)   // 替换或匹配
+            dp[i][j] = min(del, ins, rep)
+    return dp[m][n]
+
+// 回溯：从 (m, n) 走回 (0, 0)，每一步记录用到的操作
+//   走左上且 A[i] == B[j]  → 该位无需操作
+//   走左上且 A[i] != B[j]  → 把 A[i] 替换为 B[j]
+//   走上                    → 删除 A[i]
+//   走左                    → 插入 B[j]</code></pre>
+
+<div class="admonition note">
+<div class="admonition-title">注意代价不对称</div>
+<p>LCS 的表里「上」和「左」是对称的、值只增不减；编辑距离里三个来源都带代价，且 <code>dp</code> 值不再单调，<strong>不能</strong>简单地用「取较大的那个方向」回溯——必须回到三个候选值里挑出确实达到最小值的那个，否则路径会走不通。</p>
+</div>
+
+<h2>可视化演示</h2>
+
+<div class="viz-panel">
+  <div class="viz-stage">
+    <div class="panel-title">DP 表：行 = A 的前 i 个字符，列 = B 的前 j 个字符。橙格正在算，<b>三个</b>蓝格是它的三个来源</div>
+    <div id="dptable"></div>
+    <div class="sub-panel">
+      <div class="panel-title">最优对齐（回溯阶段出现）：绿 = 原字符保留，红 = 发生替换，灰「−」= 插入 / 删除造成的空位</div>
+      <div class="align-out" id="align"></div>
+    </div>
+  </div>
+  <div class="viz-msg" id="msg"></div>
+  <div class="viz-legend">
+    <span class="chip"><span class="sw" style="background:var(--viz-default)"></span>未填格</span>
+    <span class="chip"><span class="sw" style="background:rgba(67,160,71,.20)"></span>已确定 / 边界值</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-comparing)"></span>正在计算的格</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-active)"></span>三个依赖来源格 / 当前维度</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-done)"></span>回溯路径（最优操作序列）</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-swapping)"></span>替换 / 冲突位</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-eliminated)"></span>空位（插入或删除）</span>
+  </div>
+  <div id="runner"></div>
+  <div class="viz-controls">
+    <label>A <input type="text" id="inA" maxlength="8" value="book" placeholder="仅小写字母"></label>
+    <label>B <input type="text" id="inB" maxlength="8" value="back" placeholder="仅小写字母"></label>
+    <button id="btnCalc" class="viz-btn">🔍 重新计算</button>
+    <button id="btnRandom" class="viz-btn">🎲 随机样例对</button>
+    <span style="font-size:12.5px;color:var(--md-text-light)">输入限长 8，只接受 a–z（其余字符会被剔除）。</span>
+  </div>
+</div>
+
+<h2>复杂度分析</h2>
+
+<table>
+  <thead><tr><th>指标</th><th>量级</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td>最优时间复杂度</td><td><code>O(mn)</code></td><td>标准填表必须访问全部 m×n 个状态</td></tr>
+    <tr><td>平均时间复杂度</td><td><code>O(mn)</code></td><td>每格三次加法与一次取最小值</td></tr>
+    <tr><td>最坏时间复杂度</td><td><code>O(mn)</code></td><td>与内容无关；带权版本仍是同阶，只是比较的候选代价不同</td></tr>
+    <tr><td>空间复杂度</td><td><code>O(mn)</code></td><td>保留全表用于回溯操作序列；只求距离可滚动到 <code>O(min(m,n))</code></td></tr>
+    <tr><td>近似下界</td><td><code>O(mn)</code>（猜测）</td><td>SETH 猜想表明带替换的编辑距离不存在 strongly polynomial 的 <code>O(mn-ε)</code> 算法；只含插入删除时可用 LCS 位并行降到 <code>O(mn/word)</code></td></tr>
+  </tbody>
+</table>
+
+<div class="admonition tip">
+<div class="admonition-title">提示：带权版本与退化情形</div>
+<p><strong>带权编辑距离</strong>：三种操作代价不同（例如替换代价 2、插入删除代价 1，或按字符对给替换代价——生物序列比对里的 PAM/BLOSUM 矩阵即如此），只需把式子里的 <code>+1</code> 换成对应权值，DP 结构不变；此时「替换 = 一次删除 + 一次插入」不再等价，权值必须显式给出。</p>
+<p><strong>只允许插入和删除</strong>：此时公共部分一定可以保留，最优解形如「删掉 A 中没进 LCS 的字符，再插入 B 中没进 LCS 的字符」，距离 <code>= (m − LCS) + (n − LCS) = m + n − 2·LCS</code>。这个恒等式让「删除式编辑距离」与 LCS 互相归约。</p>
+<p><strong>只允许相邻交换</strong>就变成了逆序对计数问题（Kendall τ），不再是 DP；三种操作混合且带权时，还可能要用「Damerau 编辑距离」补上「交换相邻两字符」这条第四转移（<code>dp[i][j] = min(dp[i][j], dp[i-2][j-2] + 1)</code>，条件是 <code>A[i]==B[j-1] 且 A[i-1]==B[j]</code>）。</p>
+</div>
+
+<h2>应用与局限</h2>
+
+<p>编辑距离最常用在<strong>拼写纠错</strong>：把词典里每个词与输入词的距离算出来（或用 Levenshtein 自动机在 Trie 上一次遍历），取距离不超过 1~2 的候选；搜索引擎的「您是不是要搜索…」就是它。其次是<strong>模糊字符串匹配</strong>：在文本 <code>T</code> 中找与模式 <code>P</code> 距离最小的子串，把 DP 的第 0 行设为 0、扫完取最后一列最小值即可，代价 <code>O(|T|·|P|)</code>。在<strong>计算生物学</strong>里，DNA / 蛋白序列比对（Needleman–Wunsch 全局、Smith–Waterman 局部）是它的加权推广。<code>git</code>、<code>diff3</code>、语音识别的 WFST 打分、乃至 OCR 结果纠正都在用它。</p>
+
+<p>局限：<code>O(mn)</code> 对长序列昂贵，工程上常用<strong>带状剪枝</strong>（Ukkonen / banded DP，只算 <code>|i-j| ≤ k</code> 的对角带，距离上限 k 时降到 <code>O(k·n)</code>）、或用 <code>min</code> 哈希（MinHash / SimHash）做近似过滤；另外普通编辑距离对「整段移动」这类人类眼中很小的编辑（复制粘贴）度量不佳，需要 LDM（longest common subsequence with move）等扩展。</p>
+
+<div class="admonition info">
+<div class="admonition-title">参考</div>
+<p><a href="https://oi-wiki.org/string/" target="_blank" rel="noopener">OI Wiki 字符串</a>；Introduction to Algorithms（CLRS）动态规划章节；Ukkonen, "Algorithms for Strings, Trees, and Sequences"。</p>
+</div>
+
+</main>
+
+<script src="../assets/nav.js" data-base="../"></script>
+<script src="../assets/viz.js"></script>
+<script>
+(function () {
+  "use strict";
+  var MAXLEN = 8;
+  var tableEl = document.getElementById("dptable");
+  var alignEl = document.getElementById("align");
+  var steps = [];
+  var runner = null;
+
+  function clean(s) {
+    return String(s == null ? "" : s).toLowerCase().replace(/[^a-z]/g, "").slice(0, MAXLEN);
+  }
+  function randStr(len) {
+    var pool = "abcde";
+    var t = "";
+    for (var i = 0; i < len; i++) t += pool.charAt(SV.randInt(0, pool.length - 1));
+    return t;
+  }
+  function copyD(dp) {
+    var r = [];
+    for (var i = 0; i < dp.length; i++) r.push(dp[i].slice());
+    return r;
+  }
+  function hasIn(list, i, j) {
+    if (!list) return false;
+    for (var k = 0; k < list.length; k++) if (list[k][0] === i && list[k][1] === j) return true;
+    return false;
+  }
+  function findSrc(srcs, i, j) {
+    if (!srcs) return null;
+    for (var k = 0; k < srcs.length; k++) if (srcs[k][0] === i && srcs[k][1] === j) return srcs[k][2];
+    return null;
+  }
+
+  // 预计算：快照 {A,B,dp,cur,srcs,path,row,col,ops,alignA,alignB,dist,last,msg}
+  function buildSteps(rawA, rawB) {
+    var A = clean(rawA), B = clean(rawB);
+    var m = A.length, n = B.length;
+    var out = [];
+    var dp = [];
+    for (var i = 0; i <= m; i++) {
+      var line = [];
+      for (var j = 0; j <= n; j++) line.push(null);
+      dp.push(line);
+    }
+
+    function snap(extra) {
+      var s = {
+        A: A, B: B, dp: copyD(dp), cur: null, srcs: null, path: null,
+        row: null, col: null, ops: null, alignA: null, alignB: null, dist: null, last: false, msg: ""
+      };
+      for (var k in extra) {
+        if (Object.prototype.hasOwnProperty.call(extra, k)) s[k] = extra[k];
+      }
+      out.push(s);
+    }
+
+    for (var i1 = 0; i1 <= m; i1++) dp[i1][0] = i1;
+    for (var j1 = 0; j1 <= n; j1++) dp[0][j1] = j1;
+    snap({ msg: "A = " + (m ? A : "（空串）") + "（长度 " + m + "），B = " + (n ? B : "（空串）") + "（长度 " + n +
+      "）。dp[i][j] = 把 A 的前 i 个字符变成 B 的前 j 个字符的最少操作数。边界已经先填好：第 0 列 dp[i][0] = i（全删），第 0 行 dp[0][j] = j（全插）。点击「播放」或「下一步」开始。" });
+
+    for (var i = 1; i <= m; i++) {
+      for (var j = 1; j <= n; j++) {
+        var ca = A.charAt(i - 1), cb = B.charAt(j - 1);
+        var del = dp[i - 1][j] + 1;
+        var ins = dp[i][j - 1] + 1;
+        var cost = ca === cb ? 0 : 1;
+        var rep = dp[i - 1][j - 1] + cost;
+        var best = del, from = "删除";
+        if (rep < best) { best = rep; from = cost ? "替换" : "匹配"; }
+        if (ins < best) { best = ins; from = "插入"; }
+        var tie = [];
+        if (del === best) tie.push("删");
+        if (rep === best) tie.push(cost ? "替" : "匹");
+        if (ins === best) tie.push("插");
+        dp[i][j] = best;
+        snap({ row: i, col: j, cur: [i, j],
+          srcs: [[i - 1, j, "删"], [i, j - 1, "插"], [i - 1, j - 1, cost ? "替+1" : "匹+0"]],
+          msg: "dp[" + i + "][" + j + "]（把 \"" + A.slice(0, i) + "\" 变成 \"" + B.slice(0, j) + "\"）：" +
+            "删 = dp[" + (i - 1) + "][" + j + "] + 1 = " + dp[i - 1][j] + " + 1 = " + del + "；" +
+            "插 = dp[" + i + "][" + (j - 1) + "] + 1 = " + dp[i][j - 1] + " + 1 = " + ins + "；" +
+            "替 = dp[" + (i - 1) + "][" + (j - 1) + "] + (A[" + i + "]=" + ca + (cost ? " ≠ " : " == ") + "B[" + j + "]=" + cb + (cost ? "，代价 1" : "，代价 0") + ") = " + dp[i - 1][j - 1] + " + " + cost + " = " + rep +
+            " → 取最小 = " + best + "（" + from + (tie.length > 1 ? "，另有并列走法：" + tie.join("/") : "") + "）。" });
+      }
+    }
+
+    var answer = dp[m][n];
+    snap({ row: m, col: n, msg: "全表填完：dp[" + m + "][" + n + "] = " + answer + "，即编辑距离 = " + answer +
+      "。下面从右下角回溯出具体操作序列（绿格为路径）。" });
+
+    // 回溯：优先左上（匹配/替换），再上（删除），再左（插入）
+    var path = [], ops = [], aA = [], aB = [];
+    var bi = m, bj = n, guard = 0;
+    while ((bi > 0 || bj > 0) && guard < 400) {
+      guard++;
+      path.push([bi, bj]);
+      var done = false;
+      if (bi > 0 && bj > 0) {
+        var c = A.charAt(bi - 1) === B.charAt(bj - 1) ? 0 : 1;
+        if (dp[bi][bj] === dp[bi - 1][bj - 1] + c) {
+          if (c === 0) {
+            ops.unshift("第 " + bi + " 位 A[" + bi + "] = B[" + bj + "] = " + B.charAt(bj - 1) + "：保留，无操作");
+            snap({ row: bi, col: bj, path: path.slice(),
+              msg: "(" + bi + ", " + bj + ") ← 左上 (" + (bi - 1) + ", " + (bj - 1) + ")：A[" + bi + "] = " + A.charAt(bi - 1) +
+                " == B[" + bj + "] = " + B.charAt(bj - 1) + "，这一位不用改（dp[" + (bi - 1) + "][" + (bj - 1) + "] = " + dp[bi - 1][bj - 1] + "）。" });
+          } else {
+            ops.unshift("把 A[" + bi + "] = " + A.charAt(bi - 1) + " 替换成 B[" + bj + "] = " + B.charAt(bj - 1));
+            snap({ row: bi, col: bj, path: path.slice(),
+              msg: "(" + bi + ", " + bj + ") ← 左上 (" + (bi - 1) + ", " + (bj - 1) + ")：把 A[" + bi + "] = " + A.charAt(bi - 1) +
+                " 替换成 B[" + bj + "] = " + B.charAt(bj - 1) + "，代价 1（dp[" + (bi - 1) + "][" + (bj - 1) + "] = " + dp[bi - 1][bj - 1] + "，+1 = " + dp[bi][bj] + "）。" });
+          }
+          aA.unshift(A.charAt(bi - 1)); aB.unshift(B.charAt(bj - 1));
+          bi--; bj--; done = true;
+        }
+      }
+      if (!done && bi > 0 && dp[bi][bj] === dp[bi - 1][bj] + 1) {
+        ops.unshift("删除 A[" + bi + "] = " + A.charAt(bi - 1));
+        snap({ row: bi, col: bj, path: path.slice(),
+          msg: "(" + bi + ", " + bj + ") ← 上方 (" + (bi - 1) + ", " + bj + ")：删除 A[" + bi + "] = " + A.charAt(bi - 1) +
+            "，代价 1（dp[" + (bi - 1) + "][" + bj + "] = " + dp[bi - 1][bj] + "，+1 = " + dp[bi][bj] + "）。" });
+        aA.unshift(A.charAt(bi - 1)); aB.unshift("−");
+        bi--; done = true;
+      }
+      if (!done && bj > 0 && dp[bi][bj] === dp[bi][bj - 1] + 1) {
+        ops.unshift("插入 B[" + bj + "] = " + B.charAt(bj - 1));
+        snap({ row: bi, col: bj, path: path.slice(),
+          msg: "(" + bi + ", " + bj + ") ← 左方 (" + bi + ", " + (bj - 1) + ")：插入字符 B[" + bj + "] = " + B.charAt(bj - 1) +
+            "，代价 1（dp[" + bi + "][" + (bj - 1) + "] = " + dp[bi][bj - 1] + "，+1 = " + dp[bi][bj] + "）。" });
+        aA.unshift("−"); aB.unshift(B.charAt(bj - 1));
+        bj--; done = true;
+      }
+      if (!done) {
+        // 理论上不会发生：dp 值必然由三个来源之一推出
+        snap({ msg: "回溯在 (" + bi + ", " + bj + ") 卡住：dp 值 " + dp[bi][bj] + " 与三个来源都不衔接（内部检查）。" });
+        break;
+      }
+    }
+    path.push([0, 0]);
+
+    var realOps = [], cnt = 0;
+    for (var q = 0; q < ops.length; q++) if (ops[q].indexOf("无操作") < 0) { realOps.push(ops[q]); cnt++; }
+    snap({ last: true, dist: answer, path: path, ops: ops, alignA: aA.join(""), alignB: aB.join(""), row: null, col: null,
+      msg: (A || "空") + " → " + (B || "空") + " 的编辑距离 = " + answer + (cnt === answer ? " ✅" : " ⚠") +
+        "，共 " + realOps.length + " 次实际操作：" + (realOps.length ? realOps.join("；") : "（两串相同，无需操作）") +
+        "。对齐结果 " + aA.join("") + " / " + aB.join("") + "（− 为空位）。" });
+    return out;
+  }
+
+  function drawTable(s) {
+    var m = s.A.length, n = s.B.length;
+    var html = '<table class="dp"><tr><td class="corner">A＼B</td><td class="hdr">∅<span class="note">j=0</span></td>';
+    for (var j = 1; j <= n; j++) {
+      html += '<td class="' + (s.col === j ? "hdrcur" : "hdr") + '">' + s.B.charAt(j - 1) + '<span class="note">B[' + j + "]</span></td>";
+    }
+    html += "</tr>";
+    for (var i = 0; i <= m; i++) {
+      if (i === 0) {
+        html += '<tr><td class="corner">∅<span class="note">i=0</span></td>';
+      } else {
+        html += '<tr><td class="' + (s.row === i ? "hdrcur" : "hdr") + '">' + s.A.charAt(i - 1) + '<span class="note">A[' + i + "]</span></td>";
+      }
+      for (var c = 0; c <= n; c++) {
+        var v = s.dp[i][c];
+        var cls, note = findSrc(s.srcs, i, c);
+        if (s.cur && s.cur[0] === i && s.cur[1] === c) cls = "cur";
+        else if (note) cls = "src";
+        else if (hasIn(s.path, i, c)) cls = "path";
+        else if (v !== null && (i === 0 || c === 0)) cls = "bound";
+        else if (v !== null) cls = "filled";
+        else cls = "todo";
+        html += '<td class="' + cls + '">' + (v === null ? "·" : v) +
+          (note ? '<span class="note">' + note + "</span>" : "") + "</td>";
+      }
+      html += "</tr>";
+    }
+    html += "</table>";
+    tableEl.innerHTML = html;
+  }
+
+  function drawAlign(s) {
+    if (!s.alignA && !s.ops) {
+      alignEl.innerHTML = '<span style="font-size:12.5px">回溯阶段会在这里给出最优对齐与操作清单。</span>';
+      return;
+    }
+    var aA = s.alignA || "", aB = s.alignB || "";
+    var h = '<div class="ln"><span class="tag">A（原串）</span>';
+    for (var k = 0; k < aA.length; k++) {
+      var same = aA.charAt(k) === aB.charAt(k);
+      h += '<span class="g' + (aA.charAt(k) === "−" || aB.charAt(k) === "−" ? " gap" : (same ? " same" : " diff")) + '">' + aA.charAt(k) + "</span>";
+    }
+    h += "</div><div class=\"ln\"><span class=\"tag\">B（目标）</span>";
+    for (var t = 0; t < aB.length; t++) {
+      var same2 = aA.charAt(t) === aB.charAt(t);
+      h += '<span class="g' + (aA.charAt(t) === "−" || aB.charAt(t) === "−" ? " gap" : (same2 ? " same" : " diff")) + '">' + aB.charAt(t) + "</span>";
+    }
+    h += "</div>";
+    if (s.ops) {
+      h += '<ul class="ops">';
+      for (var o = 0; o < s.ops.length; o++) h += "<li>" + (o + 1) + ". " + s.ops[o] + "</li>";
+      h += "</ul>";
+    }
+    if (s.dist !== null && s.dist !== undefined) h += '<div style="margin-top:6px">编辑距离 <b>' + s.dist + "</b></div>";
+    alignEl.innerHTML = h;
+  }
+
+  function draw(step) {
+    var s = step || steps[0];
+    if (!s) return;
+    drawTable(s);
+    drawAlign(s);
+  }
+
+  function start(a, b) {
+    steps = buildSteps(a, b);
+    if (!runner) {
+      runner = SV.runner({
+        host: document.getElementById("runner"),
+        msgEl: document.getElementById("msg"),
+        steps: steps,
+        render: draw
+      });
+    } else {
+      runner.setSteps(steps);
+      draw(null);
+    }
+  }
+
+  document.getElementById("btnCalc").addEventListener("click", function () {
+    // 空串合法：距离就是另一个串的长度
+    var a = clean(document.getElementById("inA").value);
+    var b = clean(document.getElementById("inB").value);
+    document.getElementById("inA").value = a;
+    document.getElementById("inB").value = b;
+    start(a, b);
+  });
+  document.getElementById("btnRandom").addEventListener("click", function () {
+    start(randStr(SV.randInt(4, 6)), randStr(SV.randInt(4, 6)));
+  });
+
+  window.__SV_TEST__ = { buildSteps: buildSteps, draw: draw, start: start, clean: clean, maxLen: MAXLEN };
+  start("book", "back");
+})();
+</script>
+</body>
+</html>

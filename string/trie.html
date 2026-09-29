@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trie 字典树 - Saunfa Vision</title>
+<link rel="stylesheet" href="../assets/style.css">
+<style>
+.trie-stage svg { display: block; margin: 0 auto; }
+.trie-stage text { font-family: -apple-system, "Segoe UI", Roboto, "Noto Sans SC", sans-serif; }
+.trie-stage .cnt-big { font-size: 13px; font-weight: 700; }
+</style>
+</head>
+<body data-page="string/trie">
+<main class="sv-content">
+
+<h1>Trie 字典树</h1>
+
+<p><strong>Trie</strong>（音同「try」，又称<strong>字典树</strong>、<strong>前缀树</strong>）把集合里的每个字符串拆成字符，沿一条从根出发的路径存放：<strong>根到某个「结束标记」结点的路径上，各条边标注的字符依次拼起来就是一个词</strong>。所有共享前缀的词自动共享路径前缀，于是「查找一个词」「统计一个前缀被多少个词覆盖」都只需沿着路径走一次，时间正比于字符串长度，而与字典里有多少词无关。</p>
+
+<h2>算法原理</h2>
+
+<p><strong>形式定义</strong>：Trie 是一棵以字符串为边权的有根树。根结点 <code>root</code> 代表空串；若结点 <code>x</code> 对应字符串 <code>s</code>，则它的子结点 <code>child[x][c]</code> 对应字符串 <code>s + c</code>。结点上的标记 <code>terminal</code> 为真表示「从根走到这里恰好拼成字典中的一个词」。注意 <code>terminal</code> 必须是布尔标记而不是「结点有没有儿子」——一个词可能同时是另一个更长词的前缀（例如 <code>app</code> 与 <code>apple</code>）。</p>
+
+<p><strong>结点里存什么</strong>：</p>
+<ul>
+  <li><code>child[Σ]</code>：指向子结点的指针（或数组下标），按字符直接定位，因此下行一趟不需要比较；</li>
+  <li><code>terminal</code>：结束标记，区分「是一个词」与「只是某个词的前缀」；</li>
+  <li><code>cnt</code>：<strong>经过计数</strong>——插入时有多少个词经过该结点。根结点的 <code>cnt</code> 就是字典规模，结点 <code>x</code> 的 <code>cnt</code> 等于「以 <code>x</code> 的路径字符串为前缀的词数」。有了它，前缀统计从 <code>O(Σ长度)</code> 的搜索变成 <code>O(L)</code> 的一次读取。</li>
+</ul>
+
+<pre><code>struct Node:
+    child[0..25]       // 子结点指针，初值 nil；child[c] 表示往下拼一个字符 c
+    cnt                // 经过计数：有多少个词的路径经过本结点
+    terminal           // 结束标记：是否有词恰好在此结束
+
+procedure insert(word w):
+    x = root
+    x.cnt = x.cnt + 1
+    for k = 0 .. |w|-1:
+        c = w[k]
+        if x.child[c] = nil:            // 该字符分支不存在
+            x.child[c] = new Node()     // 现场新建一个结点
+        x = x.child[c]
+        x.cnt = x.cnt + 1
+    x.terminal = true                   // 打上结束标记
+
+function query(word w):                 // w 是否是字典中的一个完整词
+    x = root
+    for k = 0 .. |w|-1:
+        c = w[k]
+        if x.child[c] = nil:
+            return NOT_FOUND            // 走到缺失分支，前缀都不存在
+        x = x.child[c]
+    if x.terminal: return FOUND         // 走通且有结束标记
+    else: return PREFIX_ONLY            // 只是别的词的前缀
+
+function countPrefix(word p):           // 以 p 为前缀的词有多少个
+    x = root
+    for k = 0 .. |p|-1:
+        if x.child[p[k]] = nil: return 0
+        x = x.child[p[k]]
+    return x.cnt</code></pre>
+
+<p><strong>复杂度从哪来</strong>：插入、查询、前缀统计都只是沿边走 <code>L</code> 步，每步一次数组下标访问，因此都是 <code>O(L)</code>，<strong>与字典中词的个数 n 无关</strong>。这一点和哈希表不同：哈希表判定「串是否等于某个词」平均 <code>O(L)</code>（要算哈希并处理冲突），但它天生无法回答「以 <code>ap</code> 开头的词有几个」——那需要枚举全部 n 个词。</p>
+
+<p><strong>与其他结构的对比</strong>：</p>
+<ul>
+  <li><strong>哈希表</strong>：整词查询同为线性时间，常数更小、实现更省事；但不支持前缀查询、不支持有序遍历，且哈希函数本身要读完整串。</li>
+  <li><strong>二叉搜索树 / 平衡树</strong>：有序、能求前驱后继，但一次比较字符串就要 <code>O(L)</code>，整趟查找是 <code>O(L log n)</code>；Trie 的下行不做字符串比较，是 <code>O(L)</code>。</li>
+  <li><strong>Trie</strong>：前缀信息天然可见，最长公共前缀、按字典序枚举（DFS 即有序）都是顺手的事。</li>
+</ul>
+
+<p><strong>空间开销与压缩</strong>：朴素上界是 <code>O(n · |Σ|)</code>（<code>n</code> 个结点、每结点 <code>|Σ|</code> 条边），但实际存储的非零边只有 <code>Σ|w| - 共享前缀长度</code> 那么多，所以真实占用是「所有边的字符数」级别；用 <code>map</code> 或「儿子-兄弟」链式存边可以进一步省下空指针。当字符集很大（如 <code>0/1</code> 串、整数二进制位）时，把「只有一条儿子的链」合并成一条带字符串边权的边，就得到<strong>压缩 Trie（Radix Tree / Patricia Trie）</strong>，结点数从「字符总数」降到「词数」量级。</p>
+
+<div class="admonition warning">
+<div class="admonition-title">注意：Trie 的三处常见坑</div>
+<p><strong>1. 结束标记不可省。</strong>只用「结点是否存在」来判定命中，会把 <code>app</code> 误判为字典词（其实只存在 <code>apple</code>），也会把「前缀命中」与「整词命中」混为一谈。本页演示中查询会明确区分 <em>命中 / 只作为前缀存在 / 分支缺失</em> 三种结论。</p>
+<p><strong>2. 结点编号 ≠ 字符串顺序。</strong>结点编号只是分配顺序（本页图中结点下方标注 <code>#id</code>，圈内数字是 <code>cnt</code>）。要看字典序，必须对子边按字符排序后 DFS，而不是按编号遍历。</p>
+<p><strong>3. 重复插入。</strong>若把同一个词插入两次，<code>cnt</code> 会变成 2，前缀统计会翻倍。本页的演示按「集合」处理：已存在的词不会重复登记 <code>cnt</code>；若要支持重复词，应改用 <code>endTimes</code>（结束次数）而不是布尔标记。</p>
+</div>
+
+<h2>可视化演示</h2>
+
+<p>下图中：<strong>边上的字母</strong>是这条边携带的字符，<strong>结点内的数字</strong>是经过计数 <code>cnt</code>，<strong>结点下方的 <code>#k</code></strong> 是结点编号（仅用于对照文案，与字典序无关），<strong>双层圈</strong>表示这里有结束标记（该路径是一个完整的词）。鼠标停在结点上还会显示它代表的字符串、<code>cnt</code> 与是否为词尾。</p>
+
+<div class="viz-panel">
+  <div class="viz-stage"><div class="trie-stage" id="tree"></div></div>
+  <div class="viz-msg" id="msg"></div>
+  <div class="viz-legend">
+    <span class="chip"><span class="sw" style="background:var(--viz-default)"></span>未参与</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-comparing)"></span>正在比较的边 / 当前检查结点</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-active)"></span>已走过的路径（当前结点）</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-done)"></span>新建结点 / 命中路径 / 词尾</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-eliminated)"></span>缺失分支（查找失败）</span>
+  </div>
+  <div id="runner"></div>
+  <div class="viz-controls">
+    <label>单词 <input type="text" id="wordInp" maxlength="6" value="apple" placeholder="1~6 个小写字母"></label>
+    <button id="btnInsert" class="viz-btn primary">插入</button>
+    <button id="btnQuery" class="viz-btn">查询</button>
+    <button id="btnCount" class="viz-btn">前缀计数</button>
+    <button id="btnRandom" class="viz-btn">🎲 重建随机词集</button>
+  </div>
+</div>
+
+<h2>复杂度分析</h2>
+
+<p>记字典中词的个数为 <code>n</code>，字符串总字符数（所有词长度之和）为 <code>S</code>，单次操作的串长为 <code>L</code>，字符集大小为 <code>|Σ|</code>。</p>
+
+<table>
+  <thead><tr><th>指标</th><th>量级</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td>插入时间（最优/平均/最坏）</td><td><code>O(L)</code></td><td>沿路径下行 L 步，与 n 无关；至多新建 L 个结点</td></tr>
+    <tr><td>查询时间（最优/平均/最坏）</td><td><code>O(L)</code></td><td>最坏走满 L 步；缺失分支可能提前结束，更省</td></tr>
+    <tr><td>前缀统计时间</td><td><code>O(L)</code></td><td>下行到前缀末端结点后读 <code>cnt</code>，O(1) 出答案</td></tr>
+    <tr><td>字典序枚举全部词</td><td><code>O(S)</code></td><td>按字符顺序 DFS，每个字符访问一次</td></tr>
+    <tr><td>空间复杂度</td><td><code>O(n · |Σ|)</code>（上界）</td><td>实际只占已用边数 <code>O(S)</code>：结点数 ≤ S+1，非零边数 = 结点数 − 1。压缩 Trie 可把结点降到 <code>O(n)</code></td></tr>
+    <tr><td>稳定性 / 是否有序</td><td colspan="2">无「稳定性」概念；天然支持字典序与前序剪枝</td></tr>
+  </tbody>
+</table>
+
+<h2>应用与局限</h2>
+
+<p><strong>应用</strong>：① 字典查询与拼写检查、自动补全（沿前缀下行后 DFS 出所有词）；② 前缀匹配 / 通配前缀统计，如 IP 路由表的最长前缀匹配；③ <strong>01-Trie</strong>：把整数按二进制位从高到低插入只有 0/1 两条边的 Trie，查询「与 x 异或值最大/最小的数」时贪心地走相反位，单次 <code>O(位宽)</code>——这是「最大异或对」一类题的标准解法；④ <strong>AC 自动机</strong>：在 Trie 上补一组失败指针（等价于把 KMP 的 next 推广到多模式串），即可一次扫描匹配所有模式串；⑤ 可持久化 Trie：对每个前缀版本做路径复制，可回答「区间 <code>[l, r]</code> 内与 x 异或最大值」。</p>
+
+<p><strong>局限</strong>：空间随字符总数与字符集大小膨胀，英文小写还好，汉字或 Unicode 全字符集必须换压缩 Trie 或哈希；不支持「删除后精确回收结点」（删词要沿路减 <code>cnt</code>，再自底向上剪掉 <code>cnt = 0</code> 且非词尾的结点）；无法处理「通配符在中间」的模糊查询（那需要后缀树 / 后缀数组，见 <a href="https://oi-wiki.org/string/suffix-array/" target="_blank" rel="noopener">OI Wiki 后缀数组</a>）。</p>
+
+<div class="admonition info">
+<div class="admonition-title">参考</div>
+<p><a href="https://oi-wiki.org/string/trie/" target="_blank" rel="noopener">OI Wiki · Trie 树</a>；Introduction to Algorithms 第 5 章（字典树作为多路搜索树）；Edward Fredkin, <em>Trie Memory</em>, Communications of the ACM, 1960。</p>
+</div>
+
+</main>
+
+<script src="../assets/nav.js" data-base="../"></script>
+<script src="../assets/viz.js"></script>
+<script>
+(function () {
+  var stageEl = document.getElementById("tree");
+  var wordInp = document.getElementById("wordInp");
+  var runner = null;
+  var steps = [];
+
+  var COL = {
+    "default": "var(--viz-default)",
+    "comparing": "var(--viz-comparing)",
+    "active": "var(--viz-active)",
+    "done": "var(--viz-done)",
+    "eliminated": "var(--viz-eliminated)"
+  };
+  var STROKE = {
+    "default": "#9fa8da",
+    "comparing": "var(--viz-comparing)",
+    "active": "var(--viz-active)",
+    "done": "var(--viz-done)",
+    "eliminated": "var(--viz-eliminated)"
+  };
+
+  var GAP = 62, MX = 40, MY = 36, DY = 66, R = 15;
+  var MIN_W = 360;
+  var NODE_LIMIT = 22;          // 演示规模上限：结点总数
+  var LEAF_LIMIT = 10;          // 叶子上限：控制画布宽度
+
+  var nodes = [];               // {id, ch:{char: id}, term, cnt, depth, x, y}
+  var dictSize = 0;             // 字典中词的个数（集合语义）
+
+  function q(ch) { return "e" + ch; }        // 边键前缀（避免与结点编号撞名）
+
+  function newNode(depth) {
+    var n = { id: nodes.length, ch: {}, term: false, cnt: 0, depth: depth, x: 0, y: 0 };
+    nodes.push(n);
+    return n;
+  }
+
+  function resetTrie() { nodes = []; dictSize = 0; newNode(0); }
+
+  function walkTo(w) {
+    var x = nodes[0], path = [0], missAt = -1, i;
+    for (i = 0; i < w.length; i++) {
+      var nx = x.ch[w.charAt(i)];
+      if (nx === undefined) { missAt = i; break; }
+      x = nodes[nx];
+      path.push(x.id);
+    }
+    return { path: path, missAt: missAt, end: x.id };
+  }
+
+  // 数一数插入 w 还要新建多少个结点（不改动树）
+  function newNodeCount(w) {
+    var r = walkTo(w);
+    return r.missAt < 0 ? 0 : w.length - r.missAt;
+  }
+
+  function countWordsWithPrefix(p) {
+    var r = walkTo(p);
+    return r.missAt < 0 ? nodes[r.end].cnt : 0;
+  }
+
+  // 真正的插入：沿路 cnt+1，缺失分支就地新建结点
+  function insertNode(w) {
+    var x = nodes[0];
+    x.cnt++;
+    var path = [0], created = [], i;
+    for (i = 0; i < w.length; i++) {
+      var c = w.charAt(i);
+      var nx = x.ch[c];
+      if (nx === undefined) {
+        var n = newNode(x.depth + 1);
+        x.ch[c] = n.id;
+        n.cnt = 1;
+        created.push(n.id);
+        x = n;
+      } else {
+        x = nodes[nx];
+        x.cnt++;
+      }
+      path.push(x.id);
+    }
+    x.term = true;
+    dictSize++;
+    return { path: path, created: created, end: x.id };
+  }
+
+  // 布局：按 DFS 顺序给叶子分配等距槽位，内部结点取首末叶子中点。
+  // 可证同层两结点的水平间距 >= GAP，因此不会重叠。
+  function layout() {
+    var slot = 0, maxDepth = 0;
+    (function assign(id) {
+      var n = nodes[id], keys = [], k;
+      for (k in n.ch) keys.push(k);
+      keys.sort();
+      n.y = MY + R + n.depth * DY;
+      if (n.depth > maxDepth) maxDepth = n.depth;
+      if (!keys.length) { n.x = MX + slot * GAP; slot++; return; }
+      var first = -1, last = -1;
+      for (var i = 0; i < keys.length; i++) {
+        assign(n.ch[keys[i]]);
+        var cx = nodes[n.ch[keys[i]]].x;
+        if (first < 0) first = cx;
+        last = cx;
+      }
+      n.x = (first + last) / 2;
+    })(0);
+    return {
+      w: Math.max(MX * 2 + Math.max(0, slot - 1) * GAP, MIN_W),
+      h: MY * 2 + R * 2 + maxDepth * DY
+    };
+  }
+
+  var LAY = { w: MIN_W, h: 200 };
+
+  // 每个结点对应的字符串（根到该结点路径上各边字符拼接），用于画在结点下方
+  function pathStrings() {
+    var map = {};
+    (function dfs(id, acc) {
+      map[id] = acc;
+      var n = nodes[id], keys = [], k;
+      for (k in n.ch) keys.push(k);
+      keys.sort();
+      for (var i = 0; i < keys.length; i++) dfs(n.ch[keys[i]], acc + keys[i]);
+    })(0, "");
+    return map;
+  }
+
+  // 生成一步快照：st 形如 { 0:"active", "e1:p":"comparing" }，"hidden" 表示本轮还不存在
+  // extra.cntOver = { 结点编号: 显示用的 cnt }（插入尚未走到时，显示插入前的旧值）
+  // extra.noTerm   = 结点编号（该结点本步还不该出现结束标记）
+  function snap(st, msg, extra) {
+    st = st || {};
+    var out = { nodes: [], edges: [], w: LAY.w, h: LAY.h, msg: msg };
+    if (extra) { for (var k in extra) out[k] = extra[k]; }
+    var cntOver = (extra && extra.cntOver) ? extra.cntOver : null;
+    var noTerm = (extra && extra.noTerm !== undefined) ? extra.noTerm : -1;
+    var WS = pathStrings();
+    for (var i = 0; i < nodes.length; i++) {
+      var n = nodes[i], ns = st[n.id];
+      if (ns === "hidden") continue;
+      out.nodes.push({
+        id: n.id, x: n.x, y: n.y, word: WS[n.id],
+        cnt: (cntOver && cntOver[n.id] !== undefined) ? cntOver[n.id] : n.cnt,
+        term: n.id === noTerm ? false : n.term,
+        st: ns || "default"
+      });
+      for (var c in n.ch) {
+        var child = nodes[n.ch[c]];
+        if (st[child.id] === "hidden") continue;
+        out.edges.push({
+          from: n.id, to: child.id,
+          x1: n.x, y1: n.y, x2: child.x, y2: child.y, c: c,
+          st: st[q(c) + ":" + n.id] || "default"
+        });
+      }
+    }
+    return out;
+  }
+
+  function wordsWithPrefix(p) {
+    var r = walkTo(p);
+    if (r.missAt >= 0) return [];
+    var out = [];
+    (function dfs(id, acc) {
+      var n = nodes[id];
+      if (n.term) out.push(acc);       // acc 从 p 起算，所以 p 自身若成词也会被计入
+      var keys = [], k;
+      for (k in n.ch) keys.push(k);
+      keys.sort();
+      for (var i = 0; i < keys.length; i++) {
+        dfs(n.ch[keys[i]], acc + keys[i]);
+      }
+    })(r.end, p);
+    out.sort();
+    return out;
+  }
+
+  function listWords() {
+    return wordsWithPrefix("");
+  }
+
+  function draw(step) {
+    var s = step || steps[0];
+    if (!s) return;
+    var h = "";
+    h += '<svg width="' + s.w + '" height="' + s.h + '">';
+    var i;
+    for (i = 0; i < s.edges.length; i++) {
+      var e = s.edges[i];
+      h += '<line x1="' + e.x1 + '" y1="' + e.y1 + '" x2="' + e.x2 + '" y2="' + e.y2 +
+        '" stroke="' + STROKE[e.st] + '" stroke-width="' + (e.st === "default" ? 2 : 3.2) + '" stroke-linecap="round"/>';
+    }
+    for (i = 0; i < s.edges.length; i++) {
+      var el = s.edges[i];
+      var t = 0.46;
+      var lx = el.x1 + (el.x2 - el.x1) * t;
+      var ly = el.y1 + (el.y2 - el.y1) * t;
+      var bold = el.st !== "default";
+      h += '<text x="' + lx + '" y="' + (ly + 4.5) + '" text-anchor="middle" font-size="' +
+        (bold ? 13.5 : 12.5) + '" font-weight="' + (bold ? 700 : 600) +
+        '" fill="' + (el.st === "default" ? "#3b3f55" : STROKE[el.st]) +
+        '" stroke="#fff" stroke-width="3.6" paint-order="stroke" stroke-linejoin="round">' + SV.esc(el.c) + "</text>";
+    }
+    for (i = 0; i < s.nodes.length; i++) {
+      var n = s.nodes[i];
+      var fill = COL[n.st];
+      var tc = (n.st === "default" || n.st === "eliminated") ? "#22263a" : "#fff";
+      var ring = (n.st === "done" || n.st === "comparing" || n.st === "active") ? "#22263a" : "rgba(0,0,0,.5)";
+      h += "<g>";
+      h += '<title>结点 #' + n.id + "：串 “" + SV.esc(n.word === "" ? "（根，空串）" : n.word) +
+        "”，cnt = " + n.cnt + (n.term ? "，词尾" : "，非词尾") + "</title>";
+      h += '<circle cx="' + n.x + '" cy="' + n.y + '" r="' + R + '" fill="' + fill +
+        '" stroke="rgba(0,0,0,.28)" stroke-width="1"/>';
+      if (n.term) {
+        h += '<circle cx="' + n.x + '" cy="' + n.y + '" r="12" fill="none" stroke="' + ring + '" stroke-width="2.5"/>';
+      }
+      h += '<text x="' + n.x + '" y="' + (n.y + 4.2) + '" text-anchor="middle" font-size="12" font-weight="700" fill="' + tc + '">' + n.cnt + "</text>";
+      h += '<text x="' + n.x + '" y="' + (n.y + R + 12) + '" text-anchor="middle" font-size="10.5" fill="rgba(0,0,0,.45)">#' + n.id + "</text>";
+      h += "</g>";
+    }
+    h += "</svg>";
+    stageEl.innerHTML = h;
+  }
+
+  function resetDemo() {
+    if (!runner) {
+      runner = SV.runner({
+        host: document.getElementById("runner"),
+        msgEl: document.getElementById("msg"),
+        steps: steps,
+        render: draw
+      });
+    } else {
+      runner.setSteps(steps);
+      draw(null);
+    }
+  }
+
+  function oneShot(msg) {
+    var st = {};
+    for (var i = 0; i < nodes.length; i++) st[i] = "default";
+    steps = [snap(st, msg, { op: "notice" })];
+    resetDemo();
+  }
+
+  function readWord() {
+    var raw = String(wordInp.value || "").toLowerCase().replace(/[^a-z]/g, "").slice(0, 6);
+    if (!raw.length) {
+      oneShot("输入无效：请在左侧输入框填写 <b>1~6 个小写字母</b>（其他字符会被忽略）。当前 Trie 未改动，共 " +
+        dictSize + " 个词、" + nodes.length + " 个结点。");
+      return null;
+    }
+    wordInp.value = raw;
+    return raw;
+  }
+
+  function baseStates() {
+    var st = {};
+    for (var i = 0; i < nodes.length; i++) st[i] = "default";
+    return st;
+  }
+
+  // ---- 插入 ----
+  function doInsert() {
+    var w = readWord();
+    if (!w) return;
+    var res = walkTo(w);
+    if (res.missAt < 0 && nodes[res.end].term) {
+      var dup = baseStates();
+      dup[res.end] = "done";
+      if (res.path.length >= 2) {
+        dup[q(w.charAt(w.length - 1)) + ":" + res.path[res.path.length - 2]] = "active";
+      }
+      steps = [snap(dup, "单词 “" + w + "” 已在字典中（末端结点 #" + res.end + " 已有结束标记）。Trie 按集合登记，" +
+        "本次不重复插入，各结点的 cnt 保持不变。", { op: "insert-dup", word: w, dict: listWords() })];
+      resetDemo();
+      return;
+    }
+    var need = newNodeCount(w);
+    var leaves = 0;
+    for (var t = 0; t < nodes.length; t++) {
+      var has = false;
+      for (var kk in nodes[t].ch) has = true;
+      if (!has) leaves++;
+    }
+    var addLeaves = need ? 1 : 0;
+    if (nodes.length + need > NODE_LIMIT || leaves + addLeaves > LEAF_LIMIT) {
+      oneShot("插入 “" + w + "” 需要新建 " + need + " 个结点，会让演示规模超过上限（结点 ≤ " + NODE_LIMIT +
+        "、叶子 ≤ " + LEAF_LIMIT + "，当前 " + nodes.length + " 个结点、" + leaves + " 个叶子）。" +
+        "请点「🎲 重建随机词集」换一棵小一点的树。当前 Trie 未改动。");
+      return;
+    }
+
+    var ins = insertNode(w);
+    LAY = layout();
+
+    var created = {};
+    for (t = 0; t < ins.created.length; t++) created[ins.created[t]] = true;
+
+    // 走到第 upTo 个字符（path 下标 upTo）时的可见性快照：
+    // 本次新建但尚未走到的结点隐藏；走过的路径结点蓝色（新建的为绿色）
+    function visibleSt(upTo, extra) {
+      var st = {}, i, k;
+      for (i = 0; i < nodes.length; i++) st[i] = "default";
+      var reached = {};
+      for (k = 0; k <= upTo && k < ins.path.length; k++) reached[ins.path[k]] = true;
+      for (i = 0; i < ins.created.length; i++) {
+        if (!reached[ins.created[i]]) st[ins.created[i]] = "hidden";
+      }
+      for (k = 0; k <= upTo && k < ins.path.length; k++) {
+        st[ins.path[k]] = created[ins.path[k]] ? "done" : "active";
+      }
+      if (extra) { for (k in extra) st[k] = extra[k]; }
+      return st;
+    }
+
+    // 显示用的 cnt：尚未走到的路径结点先显示插入前的旧值
+    function insOver(upTo) {
+      var over = {}, k;
+      for (k = upTo + 1; k < ins.path.length; k++) {
+        var id = ins.path[k];
+        if (!created[id]) over[id] = nodes[id].cnt - 1;
+      }
+      if (upTo < 1) over[0] = nodes[0].cnt - 1;
+      return over;
+    }
+
+    var out = [];
+    out.push(snap(visibleSt(0, { 0: "active" }),
+      "准备插入单词 “" + w + "”（" + w.length + " 个字母）。插入前字典有 " + (dictSize - 1) + " 个词、" +
+      (nodes.length - ins.created.length) + " 个结点。从根结点 #0 出发，根的 cnt = " + (nodes[0].cnt - 1) +
+      " 表示有 " + (nodes[0].cnt - 1) + " 个词经过它。插入会把路径上每个结点的 cnt 都加 1。",
+      { cntOver: insOver(0), noTerm: ins.end }));
+
+    for (var k2 = 0; k2 < w.length; k2++) {
+      var c = w.charAt(k2);
+      var from = ins.path[k2], to = ins.path[k2 + 1];
+      var isNew = !!created[to];
+      var st2 = visibleSt(k2 + 1, null);
+      st2[q(c) + ":" + from] = isNew ? "done" : "comparing";
+      var midMsg;
+      if (isNew) {
+        midMsg = "第 " + (k2 + 1) + " 个字母 “" + c + "”：结点 #" + from + " 没有 “" + c + "” 分支，" +
+          "新建结点 #" + to + " 并把边 “" + c + "” 挂上去（绿色），它的 cnt = 1。";
+      } else {
+        midMsg = "第 " + (k2 + 1) + " 个字母 “" + c + "”：结点 #" + from + " 已有子边 “" + c + "”" +
+          " → 前进到结点 #" + to + "，其 cnt 由 " + (nodes[to].cnt - 1) + " 增至 " + nodes[to].cnt +
+          "（橙色是正在比较、沿用的那条边）。";
+      }
+      out.push(snap(st2, midMsg, { cntOver: insOver(k2 + 1), noTerm: ins.end }));
+    }
+
+    var finSt = visibleSt(w.length, null);
+    for (k2 = 0; k2 < ins.path.length; k2++) finSt[ins.path[k2]] = "done";
+    for (k2 = 1; k2 < ins.path.length; k2++) {
+      finSt[q(w.charAt(k2 - 1)) + ":" + ins.path[k2 - 1]] = "done";
+    }
+    out.push(snap(finSt, "单词 “" + w + "” 走到末端结点 #" + ins.end + "，在此<strong>打上结束标记</strong>" +
+      "（画成双层圈）。它同时可能仍是更长词的前缀，所以结束标记必须单独记录。"));
+
+    out.push(snap(finSt, "插入完成 ✅ 字典现有 " + dictSize + " 个词、" + nodes.length + " 个结点：" +
+      listWords().join("、") + "。现在查询 “" + w + "” 会命中；前缀 “" + w + "” 被 " +
+      countWordsWithPrefix(w) + " 个词经过。",
+      { op: "insert-done", word: w, dict: listWords(), nodeCount: nodes.length }));
+    steps = out;
+    resetDemo();
+  }
+
+  // ---- 查询 ----
+  function doQuery() {
+    var w = readWord();
+    if (!w) return;
+    var res = walkTo(w);
+    var out = [];
+    var st0 = baseStates();
+    st0[0] = "active";
+    out.push(snap(st0, "准备查询单词 “" + w + "”（" + w.length + " 个字母）。" +
+      "从根结点 #0 出发沿边走；结论有三种：命中、只作为前缀存在、分支缺失。当前字典有 " + dictSize + " 个词。"));
+    var i, k;
+    if (res.missAt >= 0) {
+      // 前半段能走通，第 missAt 个字母处缺失分支
+      var c = w.charAt(res.missAt);
+      var from = res.path.length ? res.path[res.path.length - 1] : 0;
+      var st = {};
+      for (i = 0; i < nodes.length; i++) st[i] = "default";
+      for (k = 0; k < res.path.length - 1; k++) st[res.path[k]] = "active";
+      st[from] = "eliminated";
+      var okPart = res.missAt === 0 ? "" : w.slice(0, res.missAt);
+      var extra = res.missAt === 0
+        ? "根结点 #0 没有 “" + c + "” 分支 → 字典里连以 “" + c + "” 开头的词都没有。"
+        : "第 " + (res.missAt + 1) + " 个字母 “" + c + "”：结点 #" + from + " 没有子边 “" + c + "” → 无法继续下行。";
+      out.push(snap(st, extra + " 因此单词 “" + w + "” 不在字典中 ❌（灰色是最后停住的结点）。" +
+        (res.missAt === 0 ? "前缀为空串当然人人都有，但它不是查询结论。"
+          : "不过前缀 “" + okPart + "” 是存在的，它有 " + countWordsWithPrefix(okPart) + " 个词经过。") +
+        " 一次失败查询只读 " + (res.missAt + 1) + " 条边，用去 O(L) 时间上界。",
+        { op: "query", word: w, result: "missing", missAt: res.missAt }));
+      steps = out;
+      resetDemo();
+      return;
+    }
+    // 走通了整条路径
+    for (i = 0; i < w.length; i++) {
+      var cc = w.charAt(i);
+      var f = res.path[i], t2 = res.path[i + 1];
+      var s = {};
+      for (k = 0; k < nodes.length; k++) s[k] = "default";
+      for (k = 0; k < i; k++) s[res.path[k]] = "active";
+      s[f] = "active";
+      s[t2] = "comparing";
+      s[q(cc) + ":" + f] = "comparing";
+      out.push(snap(s, "第 " + (i + 1) + " 个字母 “" + cc + "”：结点 #" + f + " 有子边 “" + cc + "”" +
+        " → 前进到结点 #" + t2 + "（cnt = " + nodes[t2].cnt + "，说明有 " + nodes[t2].cnt +
+        " 个词经过这里）。蓝色是走过的路径，橙色是本次比较的边。"));
+    }
+    var sEnd = {};
+    for (k = 0; k < nodes.length; k++) sEnd[k] = "default";
+    var isWord = nodes[res.end].term;
+    if (isWord) {
+      for (k = 0; k < res.path.length; k++) sEnd[res.path[k]] = "done";
+      for (k = 1; k < res.path.length; k++) sEnd[q(w.charAt(k - 1)) + ":" + res.path[k - 1]] = "done";
+      out.push(snap(sEnd, "查询成功 ✅ “" + w + "” 走完全程，末端结点 #" + res.end + " 带结束标记（双层圈），" +
+        "它确实是字典中的一个词。整条路径（绿色）共用 " + w.length + " 次下标访问，O(L)。",
+        { op: "query", word: w, result: "found" }));
+    } else {
+      for (k = 0; k < res.path.length - 1; k++) sEnd[res.path[k]] = "active";
+      sEnd[res.end] = "comparing";
+      var longer = wordsWithPrefix(w);
+      out.push(snap(sEnd, "路径全部走通，但末端结点 #" + res.end + " <strong>没有结束标记</strong>" +
+        " → “" + w + "” 本身不是字典中的词，它只作为前缀存在 ⚠️。以它为前缀的词有 " + longer.length +
+        " 个：" + longer.join("、") + "。这就是必须区分「命中」与「前缀命中」的原因。",
+        { op: "query", word: w, result: "prefix", matches: longer.length }));
+    }
+    steps = out;
+    resetDemo();
+  }
+
+  // ---- 前缀计数 ----
+  function doCount() {
+    var w = readWord();
+    if (!w) return;
+    var res = walkTo(w);
+    var out = [];
+    var st0 = baseStates();
+    st0[0] = "active";
+    out.push(snap(st0, "统计前缀 “" + w + "”：沿路径下行到它对应的结点，读出该结点的经过计数 cnt 即可，" +
+      "不必枚举字典里的词。当前字典有 " + dictSize + " 个词。"));
+    var i, k;
+    var stopAt = res.missAt >= 0 ? res.missAt : w.length;
+    for (i = 0; i < stopAt; i++) {
+      var cc = w.charAt(i);
+      var f = res.path[i], t2 = res.path[i + 1];
+      var s = {};
+      for (k = 0; k < nodes.length; k++) s[k] = "default";
+      for (k = 0; k < i; k++) s[res.path[k]] = "active";
+      s[f] = "active";
+      s[t2] = "comparing";
+      s[q(cc) + ":" + f] = "comparing";
+      out.push(snap(s, "第 " + (i + 1) + " 个字母 “" + cc + "”：走子边 “" + cc + "” 到结点 #" + t2 +
+        "（当前 cnt = " + nodes[t2].cnt + "）。"));
+    }
+    if (res.missAt >= 0) {
+      var c = w.charAt(res.missAt);
+      var from = res.path.length ? res.path[res.path.length - 1] : 0;
+      var sf = {};
+      for (k = 0; k < nodes.length; k++) sf[k] = "default";
+      for (k = 0; k < res.path.length - 1; k++) sf[res.path[k]] = "active";
+      sf[from] = "eliminated";
+      out.push(snap(sf, "第 " + (res.missAt + 1) + " 个字母 “" + c + "”：结点 #" + from + " 没有子边 “" + c +
+        "” → 前缀 “" + w + "” 在字典中一次都没出现 ✅ 结果为 0，只走了 " + (res.missAt + 1) + " 步就断定结论。",
+        { op: "count", word: w, count: 0 }));
+      steps = out;
+      resetDemo();
+      return;
+    }
+    var se = {};
+    for (k = 0; k < nodes.length; k++) se[k] = "default";
+    for (k = 0; k < res.path.length - 1; k++) se[res.path[k]] = "active";
+    se[res.end] = "done";
+    var matched = wordsWithPrefix(w);
+    out.push(snap(se, "前缀 “" + w + "” 在字典中被 " + nodes[res.end].cnt + " 个单词经过 → 出现 " +
+      nodes[res.end].cnt + " 次 ✅（末端结点 #" + res.end + " 标绿）。答案来自一次 O(L) 下行 + O(1) 读 cnt，" +
+      "命中它的前缀词：" + (matched.length ? matched.join("、") : "无") + "。",
+      { op: "count", word: w, count: nodes[res.end].cnt, list: matched }));
+    steps = out;
+    resetDemo();
+  }
+
+  // ---- 随机词集 ----
+  var GROUPS = [
+    ["an", "and", "ant", "anti"],
+    ["ap", "app", "apple", "apply"],
+    ["ba", "bad", "bag", "ball", "bat"],
+    ["ca", "cab", "can", "car", "cat"],
+    ["he", "hen", "her", "hero"],
+    ["re", "red", "ref", "rest"],
+    ["sa", "sad", "sap", "saw", "say"],
+    ["ta", "tab", "tan", "tar", "task"],
+    ["un", "und", "uni", "unit"],
+    ["lo", "log", "lot", "lost"],
+    ["mi", "mid", "min", "mint"],
+    ["pi", "pin", "pit", "pity"]
+  ];
+
+  function buildFrom(words) {
+    resetTrie();
+    for (var i = 0; i < words.length; i++) insertNode(words[i]);
+    LAY = layout();
+  }
+
+  function leafCount() {
+    var c = 0;
+    for (var i = 0; i < nodes.length; i++) {
+      var has = false;
+      for (var k in nodes[i].ch) has = true;
+      if (!has) c++;
+    }
+    return c;
+  }
+
+  function randomWords() {
+    for (var attempt = 0; attempt < 60; attempt++) {
+      var g1 = SV.randInt(0, GROUPS.length - 1);
+      var g2 = SV.randInt(0, GROUPS.length - 2);
+      if (g2 >= g1) g2++;
+      var gs = [GROUPS[g1], GROUPS[g2]];
+      var picked = [];
+      for (var i = 0; i < gs.length; i++) {
+        var g = gs[i];
+        var take = SV.randInt(2, 4);
+        var used = {};
+        for (var k = 0; k < take; k++) {
+          var idx = SV.randInt(0, g.length - 1);
+          if (used[idx]) continue;
+          used[idx] = 1;
+          picked.push(g[idx]);
+        }
+      }
+      picked.sort();
+      var dedup = [];
+      for (i = 0; i < picked.length; i++) {
+        if (!dedup.length || dedup[dedup.length - 1] !== picked[i]) dedup.push(picked[i]);
+      }
+      picked = dedup;
+      if (picked.length < 5 || picked.length > 7) continue;
+      buildFrom(picked);
+      var maxDepth = 0;
+      for (i = 1; i < nodes.length; i++) if (nodes[i].depth > maxDepth) maxDepth = nodes[i].depth;
+      if (nodes.length <= 14 && maxDepth <= 5 && leafCount() <= 6) return picked;
+    }
+    var fb = ["ap", "app", "apple", "ba", "bat", "bad"];
+    buildFrom(fb);
+    return fb;
+  }
+
+  function rebuildRandom() {
+    var picked = randomWords();
+    var st = baseStates();
+    for (var i = 1; i < nodes.length; i++) if (nodes[i].term) st[i] = "done";
+    steps = [snap(st, "已随机重建：字典中的词共 " + dictSize + " 个 —— " + picked.join("、") +
+      "。树有 " + nodes.length + " 个结点（含根 #0），双层圈的结点是词尾。注意共享前缀会共用同一条链，" +
+      "只在分叉处才新建结点。输入一个单词后点「插入 / 查询 / 前缀计数」。",
+      { op: "rebuild", dict: listWords(), nodeCount: nodes.length })];
+    resetDemo();
+  }
+
+  // ---- 初始示例树，保证首屏可看 ----
+  (function () {
+    buildFrom(["app", "apple", "apply", "bat", "bad", "base"]);
+    var st = baseStates();
+    for (var i = 1; i < nodes.length; i++) if (nodes[i].term) st[i] = "done";
+    steps = [snap(st, "初始示例字典：“" + listWords().join("、") + "”，共 " + dictSize + " 个词、" +
+      nodes.length + " 个结点。圈内数字是 cnt（经过次数）：根 #0 的 cnt = " + nodes[0].cnt +
+      "（词数），结点 #1（字母 a）的 cnt = " + nodes[1].cnt + "，说明有 " + nodes[1].cnt +
+      " 个词以 “a” 开头。输入框默认 “apple”，可直接点「查询」或「前缀计数」，再点「播放」。",
+      { op: "init", dict: listWords(), nodeCount: nodes.length })];
+    resetDemo();
+  })();
+
+  document.getElementById("btnInsert").addEventListener("click", doInsert);
+  document.getElementById("btnQuery").addEventListener("click", doQuery);
+  document.getElementById("btnCount").addEventListener("click", doCount);
+  document.getElementById("btnRandom").addEventListener("click", rebuildRandom);
+})();
+</script>
+</body>
+</html>

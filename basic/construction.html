@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>构造 - Saunfa Vision</title>
+<link rel="stylesheet" href="../assets/style.css">
+<style>
+.deg-name { font-size: 11px; color: rgba(0,0,0,.45); white-space: nowrap; }
+.bar.degbar { min-width: 46px; }
+.seq-line { font-size: 13.5px; margin: 8px 0 0; color: var(--md-text-light); }
+.seq-line b { color: var(--md-primary); }
+.cons-wrap { display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-start; }
+.cons-side { min-width: 230px; flex: 1; }
+.box-label { font-size: 12.5px; color: var(--md-text-light); font-weight: 700; display: block; margin-bottom: 6px; }
+.tags { display: flex; flex-wrap: wrap; gap: 4px; max-height: 150px; overflow-y: auto;
+  background: #fff; border: 1px solid var(--md-border); border-radius: 4px; padding: 8px; }
+.tag { font-size: 11.5px; padding: 2px 7px; border-radius: 10px;
+  background: rgba(64,81,181,.1); color: var(--md-primary); border: 1px solid rgba(64,81,181,.35); }
+</style>
+</head>
+<body data-page="basic/construction">
+<main class="sv-content">
+
+<h1>构造</h1>
+
+<p><strong>构造法</strong>（Construction）与「搜索/判定/优化」思路相反：不去试所有可能，而是直接按目标性质<strong>造出</strong>一个满足条件的解（或证明造不出）。它常依赖奇偶性、对称性、贪心结构或双射等技巧，一旦找到构造方案，正确性与复杂度往往都是免费的。本页以可完全程序化执行的经典构造——<strong>Havel–Hakimi 定理</strong>——为例：它既能判定一个度数序列能否简单图化，又顺手把图构造出来。</p>
+
+<h2>算法原理</h2>
+
+<p>给定非负整数序列 D（长度 n，值 &lt; n），问：是否存在有 n 个顶点的<strong>简单图</strong>（无自环、无重边），使其各顶点度数恰好是 D？Havel–Hakimi 定理给出递归判定与构造：</p>
+
+<pre><code>procedure HavelHakimi(D[1..n]):
+    若 D 全为 0：返回「可图化」，图为空图
+    将 D 按度数降序排列，顶点身份跟着走
+    取首元素 (u, d)：
+        若 d 大于剩余顶点个数：返回「不可图化」
+        u 与后面 d 个顶点各连一条边，
+        这 d 个顶点的度数各减 1
+        若出现负度数：返回「不可图化」
+        把 u 从序列中删去（它已处理完毕）
+        对剩余序列递归</code></pre>
+
+<p>正确性：若降序序列可图化，则最大度顶点必可与次大的 d 个顶点相连（否则用交换论证把连边「搬运」到这 d 个顶点上不破坏任何度数），因此每步贪心不失一般性；扣减后的序列可图化当且仅当原序列可图化。</p>
+
+<div class="admonition note">
+<div class="admonition-title">注解：必要而不充分的直觉</div>
+<p>「度数和为偶数」（握手引理）只是必要条件：[5,4,4,3,2,1] 的和是 19（奇数）立刻出局；而 [3,3,3,1] 和为 10 是偶数却不可图化。Havel–Hakimi 把判定做到了<strong>充要</strong>，且每一步连边就是构造本身。</p>
+</div>
+
+<h2>可视化演示</h2>
+
+<p>条形图展示 6 个顶点的<strong>当前度数</strong>（条高 = 度数，条上标数值、条下标顶点名）。每轮先降序重排（单独一步），取蓝色彩首顶点 u，与后面 d 个顶点连边（橙色，度数 −1），u 转绿表示已处理；出现红色负度数即判定不可图化。右侧同步列出已构造的边。</p>
+
+<div class="viz-panel">
+  <div class="viz-stage">
+    <div class="cons-wrap">
+      <div style="flex:1; min-width: 300px;">
+        <div class="bar-stage" id="bars"></div>
+        <p class="seq-line" id="seqLine"></p>
+      </div>
+      <div class="cons-side">
+        <span class="box-label">已构造的边</span>
+        <div class="tags" id="edgeBox"></div>
+      </div>
+    </div>
+  </div>
+  <div class="viz-msg" id="msg"></div>
+  <div class="viz-legend">
+    <span class="chip"><span class="sw" style="background:var(--viz-default)"></span>待处理顶点</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-active)"></span>本轮首顶点 u</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-comparing)"></span>正在连边（度数 −1）</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-done)"></span>已处理完毕</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-swapping)"></span>负度数（不可图化）</span>
+  </div>
+  <div id="runner"></div>
+  <div class="viz-controls">
+    <button id="btnP1" class="viz-btn">预设① 可图化 [4,4,3,3,2,2]</button>
+    <button id="btnP2" class="viz-btn">预设② 不可图化 [5,4,4,3,2,1]</button>
+    <button id="btnP3" class="viz-btn">预设③ 边界 [5,5,5,5,5,5]</button>
+    <button id="btnRandom" class="viz-btn">🎲 随机序列</button>
+  </div>
+</div>
+
+<h2>复杂度分析</h2>
+
+<table>
+  <thead><tr><th>指标</th><th>量级</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td>最优时间复杂度</td><td><code>O(n²)</code></td><td>至多 n 轮，每轮排序 + 扫描扣减 O(n log n)~O(n²)（用基数/桶排序可 O(n²) 总）</td></tr>
+    <tr><td>平均时间复杂度</td><td><code>O(n²)</code></td><td>朴素实现：n 轮 × 每轮 O(n²) 内插入排序或直接排序</td></tr>
+    <tr><td>最坏时间复杂度</td><td><code>O(n²)</code></td><td>序列可图化时必须处理完全部 n 个顶点；用优先队列 + 延迟扣减可优化</td></tr>
+    <tr><td>空间复杂度</td><td><code>O(n²)</code></td><td>存储构造出的边（稠密图可达 n² 条）；仅判定可不存边，O(n)</td></tr>
+    <tr><td>判定强度</td><td colspan="2">充要条件（Havel–Hakimi 定理），同时输出构造方案</td></tr>
+  </tbody>
+</table>
+
+<h2>应用与局限</h2>
+
+<p>构造类题目的常见技巧：<strong>奇偶构造</strong>（按 parity 分类摆放）、<strong>对称构造</strong>（回文、配对抵消）、<strong>贪心构造</strong>（每轮取最优，如本页）、<strong>双射转化</strong>（把方案数/结构与已知对象一一对应，如括号序列 ↔ 卡特兰数）。局限：构造法高度依赖观察与技巧，通常<strong>没有通用算法</strong>——Havel–Hakimi 是针对「图序列」这一特殊结构的可执行构造，一般构造题需要人工证明「这样造一定满足条件」；另外它构造的是<strong>简单图</strong>，若题目允许多重边（此时仅握手引理 + 度数 &lt; n 不够，需 Erdős–Gallai 或网络流模型）则须换方法。</p>
+
+<div class="admonition info">
+<div class="admonition-title">参考</div>
+<p>Havel (1955) / Hakimi (1962) 原始定理表述；<a href="https://oi-wiki.org/math/" target="_blank" rel="noopener">OI Wiki 数学板块</a>（其中「计数 » CAT 与组合」等章节含构造技巧，站点目录见 <a href="https://oi-wiki.org/" target="_blank" rel="noopener">OI Wiki 首页</a>）。</p>
+</div>
+
+</main>
+
+<script src="../assets/nav.js" data-base="../"></script>
+<script src="../assets/viz.js"></script>
+<script>
+(function () {
+  var barsEl = document.getElementById("bars");
+  var seqLineEl = document.getElementById("seqLine");
+  var edgeBoxEl = document.getElementById("edgeBox");
+  var steps = [];
+  var runner = null;
+
+  function degDesc(a, b) { return b.deg - a.deg || nameNum(a.name) - nameNum(b.name); }
+  function nameNum(nm) { return parseInt(nm.slice(1), 10); }
+
+  function fmtSeq(list) {
+    var ds = [];
+    for (var i = 0; i < list.length; i++) ds.push(list[i].deg);
+    return "[" + ds.join(", ") + "]";
+  }
+
+  // 快照：items = [{name, deg, st}]（st: "" | "active" | "comparing" | "done" | "swapping"）
+  function buildSteps(input) {
+    var n = input.length;
+    var remaining = [], processed = [], edges = [];
+    var out = [];
+    var i;
+    for (i = 0; i < n; i++) remaining.push({ name: "v" + (i + 1), deg: input[i] });
+    var initItems = [];
+    for (i = 0; i < n; i++) initItems.push({ name: remaining[i].name, deg: remaining[i].deg, st: "" });
+    out.push({ items: initItems, edges: [], msg:
+      "输入度数序列 " + fmtSeq(remaining) + "（顶点 v1~v" + n + "）。Havel–Hakimi：每轮降序、取首顶点 u（度数 d），" +
+      "u 与后面 d 个顶点连边并把它们度数减 1，再删去 u。点击「播放」开始。" });
+
+    var fail = false, round = 0;
+    while (true) {
+      if (!remaining.length) break;
+      remaining.sort(degDesc);
+      if (remaining[0].deg === 0) break; // 剩余全为 0 → 成功
+      round++;
+      var names = [], k;
+      for (k = 0; k < remaining.length; k++) names.push(remaining[k].name);
+      var sortItems = [];
+      for (k = 0; k < remaining.length; k++) sortItems.push({ name: remaining[k].name, deg: remaining[k].deg, st: "" });
+      for (k = 0; k < processed.length; k++) sortItems.push(processed[k]);
+      out.push({ items: sortItems, edges: edges.slice(), msg:
+        "第 " + round + " 轮：剩余顶点按度数降序重排：" + fmtSeq(remaining) +
+        "（顺序 " + names.join(", ") + "），已处理 " + processed.length + " 个。" });
+
+      var d = remaining[0].deg;
+      if (d > remaining.length - 1) {
+        sortItems[0] = { name: remaining[0].name, deg: remaining[0].deg, st: "swapping" };
+        out.push({ items: sortItems, edges: edges.slice(), msg:
+          remaining[0].name + " 的度数 d = " + d + "，但圈中只剩 " + (remaining.length - 1) +
+          " 个可连顶点，连不出这么多条边（等价于扣减出负数）→ 该序列不可简单图化 ❌" });
+        fail = true;
+        break;
+      }
+      var pickItems = [];
+      for (k = 0; k < remaining.length; k++)
+        pickItems.push({ name: remaining[k].name, deg: remaining[k].deg, st: k === 0 ? "active" : "" });
+      for (k = 0; k < processed.length; k++) pickItems.push(processed[k]);
+      var targets = remaining.slice(1, 1 + d);
+      var tNames = [];
+      for (k = 0; k < targets.length; k++) tNames.push(targets[k].name);
+      out.push({ items: pickItems, edges: edges.slice(), msg:
+        "取度数最大的 " + remaining[0].name + "（d = " + d + "）：它将与后面 " + d + " 个顶点 " +
+        tNames.join(", ") + " 各连一条边，这些顶点度数各减 1。" });
+
+      var negIdx = -1, desc = [];
+      for (k = 0; k < targets.length; k++) {
+        var oldd = targets[k].deg;
+        targets[k].deg = oldd - 1;   // targets 与 remaining[1..d] 是同一批对象，就地扣减
+        desc.push(targets[k].name + "：" + oldd + "→" + (oldd - 1));
+        if (oldd - 1 < 0 && negIdx < 0) negIdx = k;
+      }
+      var decItems = [];
+      for (k = 0; k < remaining.length; k++) {
+        var st = "";
+        if (k === 0) st = "done";
+        else if (k <= d) st = (negIdx >= 0 && k === negIdx + 1) ? "swapping" : "comparing";
+        decItems.push({ name: remaining[k].name, deg: k === 0 ? 0 : remaining[k].deg, st: st });
+      }
+      for (k = 0; k < processed.length; k++) decItems.push(processed[k]);
+      if (negIdx >= 0) {
+        out.push({ items: decItems, edges: edges.slice(), msg:
+          "逐一扣减：" + desc.join("，") + "。出现负度数 " + targets[negIdx].name +
+          "（" + targets[negIdx].deg + "）→ 该序列不可简单图化 ❌" });
+        fail = true;
+        break;
+      }
+      for (k = 0; k < targets.length; k++) edges.push([remaining[0].name, targets[k].name]);
+      out.push({ items: decItems, edges: edges.slice(), msg:
+        "为 " + remaining[0].name + " 连出 " + d + " 条边：" + desc.join("，") + "；" +
+        remaining[0].name + " 处理完毕（绿色），从剩余序列中删去。" });
+      var u = remaining.shift();
+      processed.push({ name: u.name, deg: 0, st: "done" });
+    }
+
+    var finalItems = [], k2;
+    for (k2 = 0; k2 < remaining.length; k2++) finalItems.push({ name: remaining[k2].name, deg: remaining[k2].deg, st: "done" });
+    for (k2 = 0; k2 < processed.length; k2++) finalItems.push(processed[k2]);
+    if (!fail) {
+      var eStr = [];
+      for (k2 = 0; k2 < edges.length; k2++) eStr.push("(" + edges[k2][0] + "," + edges[k2][1] + ")");
+      out.push({ items: finalItems, edges: edges.slice(), msg:
+        "构造完成 ✅ 度数序列 [" + input.join(", ") + "] 可简单图化：共连出 " + edges.length +
+        " 条边：" + (edges.length ? eStr.join(" ") : "（空图，无边）") +
+        "。每个顶点度数恰好满足要求。" });
+    }
+    return out;
+  }
+
+  function draw(step) {
+    var sv = step || steps[0];
+    if (!sv) return;
+    var html = "", i;
+    for (i = 0; i < sv.items.length; i++) {
+      var it = sv.items[i];
+      var h = it.deg < 0 ? 6 : Math.round(10 + 32 * it.deg);
+      var cls = "bar degbar" + (it.st ? " " + it.st : "");
+      html += '<div class="' + cls + '" style="height:' + h + 'px">' +
+        '<span class="bar-val">' + it.deg + '</span><span class="bar-idx deg-name">' + it.name + "</span></div>";
+    }
+    barsEl.innerHTML = html;
+    var rem = [];
+    for (i = 0; i < sv.items.length; i++) if (sv.items[i].st !== "done") rem.push(sv.items[i].name);
+    seqLineEl.innerHTML = "剩余未处理：<b>" + (rem.length ? rem.join(", ") : "（无）") +
+      "</b>，已连边数：<b>" + sv.edges.length + "</b>。";
+    var eb = "";
+    for (i = 0; i < sv.edges.length; i++) eb += '<span class="tag">(' + sv.edges[i][0] + "," + sv.edges[i][1] + ")</span>";
+    edgeBoxEl.innerHTML = eb || '<span style="font-size:12px;color:#999">（尚未连出任何边）</span>';
+  }
+
+  function restart(seq) {
+    steps = buildSteps(seq);
+    if (!runner) {
+      runner = SV.runner({
+        host: document.getElementById("runner"),
+        msgEl: document.getElementById("msg"),
+        steps: steps,
+        render: draw
+      });
+    } else {
+      runner.setSteps(steps);
+      draw(null);
+    }
+  }
+
+  document.getElementById("btnP1").addEventListener("click", function () { restart([4, 4, 3, 3, 2, 2]); });
+  document.getElementById("btnP2").addEventListener("click", function () { restart([5, 4, 4, 3, 2, 1]); });
+  document.getElementById("btnP3").addEventListener("click", function () { restart([5, 5, 5, 5, 5, 5]); });
+  document.getElementById("btnRandom").addEventListener("click", function () {
+    var a = [];
+    for (var i = 0; i < 6; i++) a.push(SV.randInt(0, 5));
+    restart(a);
+  });
+
+  restart([4, 4, 3, 3, 2, 2]);
+})();
+</script>
+</body>
+</html>

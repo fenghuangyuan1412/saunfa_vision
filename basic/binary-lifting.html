@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>倍增 - Saunfa Vision</title>
+<link rel="stylesheet" href="../assets/style.css">
+<style>
+.st-tbl { border-collapse: collapse; margin: 0 auto; font-size: 12px; }
+.st-tbl th, .st-tbl td { border: 1px solid rgba(0,0,0,.16); text-align: center; padding: 2px 1px; min-width: 34px; }
+.st-tbl th { font-weight: 700; color: rgba(0,0,0,.55); background: #f2f4fb; font-size: 11px; }
+.st-tbl th.qmark { color: var(--md-primary); font-weight: 700; }
+.st-tbl td.rowh { background: #f2f4fb; font-weight: 700; color: rgba(0,0,0,.6); font-size: 10.5px; min-width: 52px; line-height: 1.25; }
+.st-tbl td.stc { background: var(--viz-default); font-weight: 700; color: #1a237e; }
+.st-tbl td.stc.none { background: #fff; color: rgba(0,0,0,.25); font-weight: 400; }
+.st-tbl td.stc.comparing { background: var(--viz-comparing); color: #3b2000; }
+.st-tbl td.stc.active { background: var(--viz-active); color: #fff; }
+.st-tbl td.stc.done { background: var(--viz-done); color: #fff; }
+.st-tbl td.stc.eliminated { background: var(--viz-eliminated); color: rgba(0,0,0,.35); }
+.st-tbl .rng { display: block; font-size: 9px; font-weight: 400; opacity: .75; line-height: 1.1; }
+.st-result { margin-top: 8px; font-size: 13.5px; font-weight: 700; color: rgba(0,0,0,.45); text-align: center; }
+.st-result.on { color: #fff; background: var(--viz-done); border-radius: 3px; padding: 4px 10px; display: inline-block; }
+.box-label { font-size: 12.5px; color: var(--md-text-light); font-weight: 700; display: block; margin-bottom: 6px; }
+</style>
+</head>
+<body data-page="basic/binary-lifting">
+<main class="sv-content">
+
+<h1>倍增</h1>
+
+<p><strong>倍增</strong>（Binary Lifting）是用 <strong>2 的幂次</strong>作为步长来加速跳转与区间合并的技巧：预先算出「一步走 <code>2⁰, 2¹, 2², …</code>」的结果，任何距离 <code>d</code> 都能拆成不超过 <code>⌊log₂d⌋ + 1</code> 个 2 的幂之和，于是把 <code>O(n)</code> 次逐步跳转压缩为 <code>O(log n)</code> 次。</p>
+
+<h2>算法原理</h2>
+
+<p>设 <code>f[k][i]</code> 表示「从位置 <code>i</code> 出发，按某个可叠加的关系走 <code>2^k</code> 步得到的结果」。由于 <code>2^k = 2^(k-1) + 2^(k-1)</code>，「走 <code>2^k</code> 步」等价于「先走 <code>2^(k-1)</code> 步，再从中点再走 <code>2^(k-1)</code> 步」，得到通用递推：</p>
+
+<pre><code>f[0][i] = 基础值(i)                                // 走 1 步（长度 1 的区间）
+f[k][i] = merge( f[k-1][i], f[k-1][i + 2^(k-1)] )   // 两个长度 2^(k-1) 的块拼成长度 2^k</code></pre>
+
+<p><strong>ST 表</strong>（Sparse Table）是它在「区间最值」上的实例：<code>f[k][i] = max(a[i..i+2^k−1])</code>，即 <code>merge = max</code>、<code>i + 2^(k-1)</code> 是右半块的起点。</p>
+
+<pre><code>buildST(a[1..n]):
+    for i = 1 to n: f[0][i] = a[i]
+    for k = 1 while 2^k &lt;= n:
+        for i = 1 to n - 2^k + 1:
+            f[k][i] = max(f[k-1][i], f[k-1][i + 2^(k-1)])
+
+queryMax(l, r):
+    len = r - l + 1
+    k = floor(log2(len))          // 不超过 len 的最大 2 的幂
+    return max(f[k][l], f[k][r - 2^k + 1])   // 两个长度为 2^k 的区间首尾重叠即可覆盖 [l, r]</code></pre>
+
+<p>查询用两个长度为 <code>2^k</code> 的区间：左端锚在 <code>l</code>，右端锚在 <code>r</code>。因为 <code>2^k &le; len &lt; 2^(k+1)</code>，两段之和 <code>2^(k+1) &gt; len</code>，必然首尾相接甚至重叠，所以 <code>[l, r]</code> 被完整覆盖，取两次 max 即得答案。这种「允许重复覆盖」正是 ST 表只能用于<strong>可重复贡献</strong>（idempotent，<code>op(x, x) = x</code>）运算的原因。</p>
+
+<p><strong>其它倍增应用</strong>：树上跳祖先（<code>fa[k][u] = fa[k-1][fa[k-1][u]]</code>，配合深度对齐求 LCA）、快速幂（<code>x^(2^k)</code> 递推，把 <code>n</code> 次乘法降到 <code>O(log n)</code>）、二进制分组背包、序列跳转（如「走 K 步落在哪」的函数倍增）。</p>
+
+<div class="admonition warning">
+<div class="admonition-title">注意：ST 表只适用于可重复贡献运算</div>
+<p>可重复贡献指 <code>op(x, x) = x</code> 且结合律成立：<code>max</code>、<code>min</code>、<strong>按位与</strong>、<strong>按位或</strong>、<code>gcd</code> 都满足；<strong>区间和</strong>不满足，因为重叠部分会被计入两次。反例：<code>a = [1, 2, 3, 4]</code>，仿照 ST 表用「两个长度 2 的块」查 <code>[1, 3]</code>：<code>k = ⌊log₂3⌋ = 1</code>，两段为 <code>f[1][1] = 1 + 2 = 3</code> 与 <code>f[1][2] = 2 + 3 = 5</code>，相加得 <code>8</code>，而真值 <code>1 + 2 + 3 = 6</code>——下标 2 的值 <code>2</code> 被重复计入。若把运算换成 <code>max</code>：<code>max(3, 5) = 3</code>（对块取 max 后 <code>max(max(1,2), max(2,3)) = 3</code>）依然正确，因为重复的 <code>2</code> 不改变结果。区间和请改用前缀和（见 <a href="prefix-sum.html">前缀和 &amp; 差分</a>），需要「修改 + 查询」并存时用树状数组或线段树。</p>
+</div>
+
+<h2>可视化演示</h2>
+
+<p>主面板是 ST 表分层结构：第 <code>k</code> 行存放所有长度为 <code>2^k</code> 的区间最大值，格内上为值、下为该格覆盖的下标区间 <code>[i, i+2^k−1]</code>；白色「·」表示该行放不下这么多区间（<code>i &gt; n − 2^k + 1</code>）。填充时橙色 = 正在计算的格，蓝色 = 已填好的格。建表后做区间查询：两次用到的格先标橙、再标绿，表头同时标出 <code>l</code> 与 <code>r</code> 所在列。</p>
+
+<div class="viz-panel">
+  <div class="viz-stage">
+    <span class="box-label" id="tblLabel"></span>
+    <div id="tblBox"></div>
+    <div class="st-result" id="result"></div>
+  </div>
+  <div class="viz-msg" id="msg"></div>
+  <div class="viz-legend">
+    <span class="chip"><span class="sw" style="background:var(--viz-default)"></span>未填 / 待填</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-comparing)"></span>正在计算该格</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-active)"></span>已填好</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-done)"></span>查询用到的格</span>
+  </div>
+  <div id="runner"></div>
+  <div class="viz-controls">
+    <label>l <input type="number" id="lInp" min="1" max="12" step="1" value="3"></label>
+    <label>r <input type="number" id="rInp" min="1" max="12" step="1" value="11"></label>
+    <button id="btnQuery" class="viz-btn primary">🔍 查询最大值</button>
+    <button id="btnRandom" class="viz-btn">🎲 随机新数组</button>
+  </div>
+</div>
+
+<h2>复杂度分析</h2>
+
+<table>
+  <thead><tr><th>指标</th><th>量级</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td>最优时间复杂度</td><td><code>O(n log n + m)</code></td><td>预处理一次 + <code>m</code> 次 <code>O(1)</code> 查询；朴素做法为 <code>O(n·m)</code></td></tr>
+    <tr><td>平均时间复杂度</td><td><code>O(n log n + m)</code></td><td>建表格数与查询次数固定，与数据分布无关</td></tr>
+    <tr><td>最坏时间复杂度</td><td><code>O(n log n + m)</code></td><td>同上；若数据有修改则需重建，重建代价仍是 <code>O(n log n)</code></td></tr>
+    <tr><td>预处理时间</td><td><code>O(n log n)</code></td><td>共 <code>K+1 = ⌊log₂n⌋+1</code> 层，第 k 层 <code>n − 2^k + 1</code> 格，每格一次 <code>max</code></td></tr>
+    <tr><td>单次查询时间</td><td><code>O(1)</code></td><td>一次 <code>⌊log₂</code>len<code>⌋</code>（查表得）+ 两次访问 + 一次 <code>max</code></td></tr>
+    <tr><td>空间复杂度</td><td><code>O(n log n)</code></td><td>n=12 时为 4 层共 <code>12+11+9+5 = 37</code> 个值；<code>n = 10⁵</code> 时约 <code>1.7×10⁶</code> 个整数，注意内存</td></tr>
+  </tbody>
+</table>
+
+<h2>应用与局限</h2>
+
+<p>应用：<strong>静态区间最值</strong>（RMQ）、<strong>树上倍增求 LCA</strong>——用 <code>fa[k][u]</code> 表示 <code>u</code> 的 <code>2^k</code> 级祖先，先把两点深度对齐再同步上跳，单次查询 <code>O(log n)</code>，详见本站 <a href="../graph/lca.html">LCA</a> 页；<strong>快速幂</strong>把指数按二进制拆分，<code>x^n</code> 只需 <code>O(log n)</code> 次乘法；以及「走 K 步」类跳转（如函数迭代、倍增求第 K 小祖先）。字符串中也有倍增思想（如后缀数组的 <code>rk</code> 双关键字排序按长度 <code>1, 2, 4, …</code> 逐步加倍）。</p>
+
+<p>局限：① 表一旦建好就<strong>不支持修改</strong>，任何单点改动会让 <code>O(log n)</code> 个区间失效，动态问题请用线段树；② 只适用于可重复贡献运算（见上方警告框）；③ <code>O(n log n)</code> 空间在 <code>n</code> 很大、层数多（如二维 ST 表）时容易超内存；④ 需要 <code>⌊log₂</code>len<code>⌋</code> 时通常预置 <code>lg[]</code> 数组，避免每次调用浮点 <code>log</code> 带来的精度误差（<code>Math.floor(Math.log2(8))</code> 这类边界值应实测校验或改查表）。</p>
+
+<div class="admonition info">
+<div class="admonition-title">参考</div>
+<p>OI Wiki 算法·倍增：<a href="https://oi-wiki.org/algorithm/doubling/" target="_blank" rel="noopener">https://oi-wiki.org/algorithm/doubling/</a>；Introduction to Algorithms 关于 RMQ 与稀疏表的思考题。</p>
+</div>
+
+</main>
+
+<script src="../assets/nav.js" data-base="../"></script>
+<script src="../assets/viz.js"></script>
+<script>
+(function () {
+  var N = 12;
+  var tblBox = document.getElementById("tblBox");
+  var labelEl = document.getElementById("tblLabel");
+  var resultEl = document.getElementById("result");
+  var lInp = document.getElementById("lInp");
+  var rInp = document.getElementById("rInp");
+  var steps = [];
+  var runner = null;
+  var a = [];
+  var tbCache = null;
+  var queries = [[2, 9], [4, 6]];
+  var SUP = { 0: "⁰", 1: "¹", 2: "²", 3: "³", 4: "⁴", 5: "⁵" };
+
+  function pow2(k) { return 1 << k; }
+  function countOf(k) { return N - pow2(k) + 1; }
+  function levelMax(n) { var k = 0; while (pow2(k + 1) <= n) k++; return k; }
+  function sup(k) { return SUP[k] || ("^" + k); }
+  function lgFloor(x) { var k = 0; while (pow2(k + 1) <= x) k++; return k; }
+
+  function randArray() {
+    var arr = [null];
+    for (var i = 1; i <= N; i++) arr.push(SV.randInt(1, 20));
+    return arr;
+  }
+
+  // 预计算 ST 表 f[k][i]（1-indexed），快照只记录「填充进度」
+  function buildTable(arr) {
+    var K = levelMax(N);
+    var f = [];
+    for (var k = 0; k <= K; k++) {
+      var row = [];
+      for (var i = 0; i <= N + 1; i++) row.push(null);
+      f.push(row);
+    }
+    for (i = 1; i <= N; i++) f[0][i] = arr[i];
+    for (k = 1; k <= K; k++) {
+      for (i = 1; i <= countOf(k); i++) {
+        f[k][i] = Math.max(f[k - 1][i], f[k - 1][i + pow2(k - 1)]);
+      }
+    }
+    return { f: f, K: K };
+  }
+
+  // 每个 step 是完整快照 { fc:[每行已填格数], cur:{k,i}, qh:[{k,i,st}], ql, qr, result, phase, msg }
+  function buildSteps() {
+    tbCache = buildTable(a);
+    var f = tbCache.f, K = tbCache.K;
+    var out = [];
+    var fc = [];
+    for (var z = 0; z <= K; z++) fc.push(0);
+    var totalCells = 0;
+    for (var kk = 0; kk <= K; kk++) totalCells += countOf(kk);
+
+    function snap(o) {
+      var fCopy = f.map(function (row) { return row.slice(); });
+      out.push({
+        f: fCopy,
+        arr: a.slice(),
+        fc: fc.slice(),
+        cur: o.cur || null,
+        qh: (o.qh || []).map(function (x) { return { k: x.k, i: x.i, st: x.st }; }),
+        ql: o.ql === undefined ? null : o.ql,
+        qr: o.qr === undefined ? null : o.qr,
+        result: o.result || null,
+        phase: o.phase || "fill",
+        K: K,
+        totalCells: totalCells,
+        msg: o.msg
+      });
+    }
+
+    /* 第 0 层 */
+    fc[0] = countOf(0);
+    snap({ phase: "fill0",
+      msg: "ST 表共 " + (K + 1) + " 层（k = 0…" + K + "，第 k 层的区间长度为 2^k）。第 0 层直接抄原数组：" +
+        "f[0][1]…" + "f[0][" + N + "] = " + (function () { var p = []; for (var i = 1; i <= N; i++) p.push(a[i]); return p.join(" "); })() +
+        "（每格覆盖长度 1 的区间）。共 " + countOf(0) + " 格。" });
+
+    /* 第 k ≥ 1 层：逐格填充 */
+    for (var k = 1; k <= K; k++) {
+      for (var i = 1; i <= countOf(k); i++) {
+        fc[k] = i;
+        var left = f[k - 1][i], right = f[k - 1][i + pow2(k - 1)];
+        snap({ cur: { k: k, i: i }, phase: "fill",
+          msg: "f[" + k + "][" + i + "] = max(f[" + (k - 1) + "][" + i + "], f[" + (k - 1) + "][" +
+            (i + pow2(k - 1)) + "]) = max(" + left + ", " + right + ") = " + f[k][i] +
+            "（覆盖区间 [" + i + ", " + (i + pow2(k) - 1) + "]）。" });
+      }
+      snap({ cur: null, phase: "rowdone",
+        msg: "第 " + k + " 层填完：区间长度 2" + sup(k) + " = " + pow2(k) + "，共 " + countOf(k) +
+          " 格（i 只能取到 " + countOf(k) + "，再往右放不下长度 " + pow2(k) + " 的区间）。" });
+      fc[k] = countOf(k);
+    }
+
+    snap({ cur: null, phase: "builtdone",
+      msg: "建表完成：共 " + (K + 1) + " 层、" + totalCells + " 个区间最大值，预处理 O(n log n) = 12 × 4。下面做区间查询。" });
+
+    /* 查询 */
+    var answers = [];
+    for (var q = 0; q < queries.length; q++) {
+      var l = queries[q][0], r = queries[q][1];
+      var len = r - l + 1;
+      var kq = lgFloor(len);
+      var i2 = r - pow2(kq) + 1;
+      var ans = Math.max(f[kq][l], f[kq][i2]);
+      snap({ qh: [{ k: kq, i: l, st: "comparing" }, { k: kq, i: i2, st: "comparing" }],
+        ql: l, qr: r, phase: "query",
+        msg: "查询 " + (q + 1) + "：max a[" + l + ".." + r + "]，长度 len = " + len + "，k = ⌊log₂" + len + "⌋ = " + kq +
+          "。取两个长度 2" + sup(kq) + " = " + pow2(kq) + " 的重叠区间：f[" + kq + "][" + l + "]（覆盖 [" + l + ", " +
+          (l + pow2(kq) - 1) + "]）与 f[" + kq + "][" + i2 + "]（覆盖 [" + i2 + ", " + r + "]）。" });
+      answers.push("max[" + l + "," + r + "] = " + ans);
+      snap({ qh: [{ k: kq, i: l, st: "done" }, { k: kq, i: i2, st: "done" }],
+        ql: l, qr: r, phase: "querydone", result: answers[answers.length - 1],
+        msg: "max(f[" + kq + "][" + l + "], f[" + kq + "][" + i2 + "]) = max(" + f[kq][l] + ", " + f[kq][i2] + ") = " +
+          ans + " ✅ 即 a[" + l + ".." + r + "] 的最大值（O(1)：两次查表 + 一次比较）。" });
+    }
+
+    snap({ cur: null, phase: "end",
+      result: answers.length ? answers.join("，") : "无查询",
+      msg: "✅ ST 表就绪：n = " + N + "，层数 " + (K + 1) + "（长度 1、" +
+        (function () { var p = []; for (var t = 1; t <= K; t++) p.push(pow2(t)); return p.join("、"); })() +
+        "），共 " + totalCells + " 格；本次完成 " + queries.length + " 次区间最大值查询，每次 O(1)：" +
+        (answers.length ? answers.join("，") : "（无）") + "。" });
+    return out;
+  }
+
+  function cellState(s, k, i) {
+    if (i > countOf(k)) return "none";
+    for (var x = 0; x < s.qh.length; x++) {
+      if (s.qh[x].k === k && s.qh[x].i === i) return s.qh[x].st;
+    }
+    if (s.cur && s.cur.k === k && s.cur.i === i) return "comparing";
+    if (i <= s.fc[k]) return "active";
+    return "";
+  }
+
+  function draw(step) {
+    var s = step || steps[0];
+    if (!s) return;
+    var f = tbCache.f;
+    var html = '<table class="st-tbl"><thead><tr><th>k \\ i</th><th>2^k</th>';
+    for (var i = 1; i <= N; i++) {
+      var mark = "";
+      if (s.ql === i) mark = '<span class="qmark"> l</span>';
+      if (s.qr === i) mark += '<span class="qmark"> r</span>';
+      html += '<th>' + i + mark + "</th>";
+    }
+    html += "</tr></thead><tbody>";
+    for (var k = 0; k <= s.K; k++) {
+      html += '<tr><td class="rowh">k = ' + k + "</td>";
+      html += '<td class="rowh">长度 ' + pow2(k) + "</td>";
+      for (i = 1; i <= N; i++) {
+        var st = cellState(s, k, i);
+        var val = f[k][i];
+        var txt = (st === "none" || val === null || val === undefined) ? "·" : val;
+        html += '<td class="stc ' + st + '">' + txt +
+          (st === "none" ? "" : '<span class="rng">' + (val === null ? "—" : "[" + i + "," + (i + pow2(k) - 1) + "]")) + "</td>";
+      }
+      html += "</tr>";
+    }
+    html += "</tbody></table>";
+    tblBox.innerHTML = html;
+
+    labelEl.innerHTML = "ST 表（层数 k = 0…" + s.K + "，n = " + N + "）　已填 <b>" +
+      (function () { var t = 0; for (var q = 0; q <= s.K; q++) t += s.fc[q]; return t; })() + " / " + s.totalCells +
+      " 格　阶段：" + (s.phase === "fill0" ? "第 0 层" : s.phase === "fill" ? "逐格合并" :
+        s.phase === "rowdone" ? "整层完成" : s.phase === "builtdone" ? "建表完成" :
+        s.phase === "query" ? "判定用哪两格" : s.phase === "querydone" ? "查询得解" : "结束");
+
+    if (s.result) {
+      resultEl.className = "st-result on";
+      resultEl.innerHTML = s.result;
+    } else {
+      resultEl.className = "st-result";
+      resultEl.innerHTML = "（当前没有查询结果）";
+    }
+  }
+
+  function readLR() {
+    var l = parseInt(lInp.value, 10);
+    var r = parseInt(rInp.value, 10);
+    if (isNaN(l)) l = 1;
+    if (isNaN(r)) r = N;
+    if (l < 1) l = 1;
+    if (l > N) l = N;
+    if (r < 1) r = 1;
+    if (r > N) r = N;
+    if (l > r) { var t = l; l = r; r = t; }
+    lInp.value = l; rInp.value = r;
+    return [l, r];
+  }
+
+  function rebuild() {
+    tbCache = buildTable(a);
+    steps = buildSteps();
+    if (!runner) {
+      runner = SV.runner({
+        host: document.getElementById("runner"),
+        msgEl: document.getElementById("msg"),
+        steps: steps,
+        render: draw
+      });
+    } else {
+      runner.setSteps(steps);
+      draw(null);
+    }
+  }
+
+  document.getElementById("btnQuery").addEventListener("click", function () {
+    var lr = readLR();
+    queries.push([lr[0], lr[1]]);
+    if (queries.length > 4) queries.shift();
+    rebuild();
+  });
+
+  document.getElementById("btnRandom").addEventListener("click", function () {
+    a = randArray();
+    queries = [[SV.randInt(1, 4), SV.randInt(9, N)], [SV.randInt(5, 8), SV.randInt(9, N)]];
+    rebuild();
+  });
+
+  a = randArray();
+  rebuild();
+})();
+</script>
+</body>
+</html>

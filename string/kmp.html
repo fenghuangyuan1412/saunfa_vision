@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KMP 模式匹配 - Saunfa Vision</title>
+<link rel="stylesheet" href="../assets/style.css">
+<style>
+.kmp-stage .cell-stage { gap: 3px; padding: 22px 2px 26px; }
+.kmp-stage .cell { width: 30px; min-width: 30px; height: 34px; font-size: 13.5px; }
+.kmp-stage .cell .idx { bottom: -16px; font-size: 10.5px; }
+.kmp-stage .cell .ptr { top: -19px; font-size: 11px; }
+.kmp-stage .cell.nc { font-size: 12.5px; }
+.kmp-cap { font-size: 12px; color: var(--md-text-light); padding-left: 2px; }
+.kmp-cap b { color: var(--md-primary); }
+</style>
+</head>
+<body data-page="string/kmp">
+<main class="sv-content">
+
+<h1>KMP 模式匹配</h1>
+
+<p>给定主串 <code>T</code>（长 <code>n</code>）与模式串 <code>P</code>（长 <code>m</code>），要在 <code>T</code> 中找出 <code>P</code> 出现的位置。<strong>朴素匹配</strong>每换一个对齐起点就把 <code>P</code> 从头比起，主串指针反复回退，最坏 <code>O(nm)</code>。<strong>KMP</strong> 的关键洞察是：失配那一刻，主串里<strong>刚刚比过的那一段我们已经知道了</strong>，用它和模式串自身的重叠信息就能一步跳到正确的对齐，<strong>主串指针 <code>i</code> 全程只前进、绝不回退</strong>，于是总比较次数降到线性。</p>
+
+<h2>算法原理</h2>
+
+<h3>一、朴素匹配慢在哪里</h3>
+
+<pre><code>procedure naive(T[0..n-1], P[0..m-1]):
+    for s = 0 .. n-m:              // s 是模式串对齐的起点
+        for j = 0 .. m-1:
+            if T[s+j] ≠ P[j]: break        // 失配，起点 s 被否掉
+        // 下一个起点 s+1 又从 T[s+1] 开始比，T[s+1..s+j] 这段白白重看一遍</code></pre>
+
+<p>设想 <code>T = "aaaaab..."</code>、<code>P = "aaaac"</code>：每次都要比到第 5 个字符才发现不等，然后前功尽弃，比较次数达到 <code>Θ(nm)</code>。浪费的根源是<strong>主串指针回退</strong>——它把已获得的信息丢掉了。</p>
+
+<h3>二、前缀函数 / next 数组</h3>
+
+<p>本页采用「<strong>前缀长度</strong>」下标约定，并在全页保持一致：</p>
+
+<div class="admonition note">
+<div class="admonition-title">本页的定义</div>
+<p><code>next[k] = 字符串 P 的前 k 个字符组成的前缀 P[0..k-1] 的最长「真前缀 = 真后缀」的长度</strong>（真前缀 / 真后缀指不包括整串自己，空串算，长度下界为 0）。<code>k</code> 的取值范围是 <code>0..m</code>：把 <code>k</code> 理解为「<strong>当前已经匹配了 k 个字符</strong>」，那么失配时把 <code>j</code> 跳到 <code>next[j]</code> 就是本页全部用途。<code>next[0] = 0</code> 只是哨兵，表示一个字符都没匹配上、无处可退。</p>
+</div>
+
+<p>按这个定义，对 <code>P = "abab"</code>：<code>next[0]=0</code>（哨兵）、<code>next[1]=0</code>（"a" 无非空真前缀）、<code>next[2]=0</code>（"ab"）、<code>next[3]=1</code>（"aba" 的真前缀 "a" = 真后缀 "a"）、<code>next[4]=2</code>（"abab" 的 "ab" = "ab"）。</p>
+
+<h3>三、求 next：把自己和自己做一次 KMP</h3>
+
+<pre><code>procedure buildNext(P[0..m-1]):
+    next[0] = 0                     // 哨兵
+    next[1] = 0                     // 长度 1 的前缀没有非空真前缀
+    i = 2
+    while i &lt;= m:
+        j = next[i - 1]             // 候选长度：前一格的答案
+        while j &gt; 0 且 P[j] ≠ P[i - 1]:
+            j = next[j]             // 候选不够长，继续缩短
+        if P[j] == P[i - 1]:
+            j = j + 1               // 能在候选后面再接一个字符
+        next[i] = j
+        i = i + 1</code></pre>
+
+<p>正确性：<code>next[i-1] = j</code> 意味着 <code>P[0..j-1] = P[i-1-j..i-2]</code>。若再有 <code>P[j] = P[i-1]</code>，就在两端各接一个字符，得到 <code>P[0..j] = P[i-1-j..i-1]</code>，即 <code>next[i] ≥ j+1</code>；而 <code>next[i]</code> 不可能超过 <code>j+1</code>（否则去掉最后一位就给出 <code>next[i-1] ≥ j+1</code>，矛盾）。若 <code>P[j] ≠ P[i-1]</code>，则长度 <code>j+1</code> 不成立，退而求其次考察 <code>next[j]</code>——所有比 <code>j</code> 短的候选都被这条链覆盖，一个不漏。</p>
+
+<h3>四、匹配</h3>
+
+<pre><code>procedure kmpSearch(T[0..n-1], P[0..m-1]):
+    buildNext(P)                    // O(m)
+    i = 0, j = 0                    // i：主串指针（永不回退）；j：已匹配的模式串长度
+    while i &lt; n:
+        if T[i] == P[j]:            // 注意 j &lt; m 恒成立，见下
+            i = i + 1; j = j + 1    // 双双前进，对齐起点 i - j 不变
+        else if j &gt; 0:
+            j = next[j]             // 失配：j 回退，i 不动 —— 模式串相对主串右滑
+        else:
+            i = i + 1               // j = 0 无处可退，主串指针前移
+        if j == m:
+            report 一次命中，起点 = i - m
+            j = next[m]             // 回退后继续找下一个（允许重叠）出现位置</code></pre>
+
+<p><strong>失配回退为什么正确</strong>：此刻已匹配 <code>j</code> 个字符，即 <code>P[0..j-1] = T[i-j..i-1]</code>。新的对齐起点若落在 <code>s = i - k</code>（即希望保持 <code>k</code> 个已匹配字符），就必须有 <code>P[0..k-1] = P[j-k..j-1]</code>，也就是 <code>k</code> 是前缀 <code>P[0..j-1]</code> 的一个「真前缀 = 真后缀」的长度。取<strong>最大</strong>的这类 <code>k = next[j]</code> 即可：任何 <code>next[j] &lt; k &lt; j</code> 都不满足等式，那一格必然立刻失配，跳过它们不会漏解；而更小的 <code>k</code> 将来还能通过 <code>next</code> 链继续取到。因为 <code>j == m</code> 时立即被报告并回退成 <code>next[m] &lt; m</code>，循环开头总有 <code>j &lt; m</code>，故 <code>P[j]</code> 合法。</p>
+
+<div class="admonition tip">
+<div class="admonition-title">提示：next 数组有两套下标约定，抄代码前先对齐</div>
+<p><strong>本页约定（0 初始 / 前缀长度）</strong>：<code>next[0] = 0</code>、<code>next[1] = 0</code>，<code>next</code> 长 <code>m+1</code>，<code>j</code> 表示「已匹配字符数」，失配时 <code>j = next[j]</code>，且必须额外处理「<code>j = 0</code> 时 <code>i++</code>」。</p>
+<p><strong>另一种常见约定（−1 初始 / 字符下标）</strong>：<code>next[0] = -1</code>，<code>j</code> 表示「<strong>下一次要比较的模式串下标</strong>」，写成统一分支：</p>
+<pre><code>i = 0, j = -1
+while i &lt; n:
+    if j == -1 或 T[i] == P[j]:  i++; j++       // 哨兵 -1 让 i 自动前移
+    else:  j = next[j]</code></pre>
+<p>此时 <code>next[i]</code> 的含义是「<code>P[0..i-1]</code> 的最长公共前后缀长度」<strong>再往前挪一格</strong>，两套值不能互换使用。两套写法都对，混用（例如拿 <code>-1</code> 约定求出的表喂给 0 约定的匹配循环，或忘记 <code>j == 0</code> 时 <code>i</code> 要前移）是 KMP 最常见的 bug 来源。本题可视化里 <code>next</code> 行的格子标注了自己的下标 <code>k</code>，请对照本页定义阅读。</p>
+</div>
+
+<p><strong>找所有出现位置</strong>与找第一个的差别只在一处：报告命中后不退出，而是令 <code>j = next[m]</code> 继续。若题目要求<strong>不允许重叠</strong>，命中后直接把 <code>j</code> 置 0（并把 <code>i</code> 移到 <code>i</code>）即可。</p>
+
+<h2>可视化演示</h2>
+
+<p>三行格子从上到下分别是主串 <code>T</code>、模式串 <code>P</code>、<code>next</code> 数组。<code>P</code> 与 <code>next</code> 一起构成一个整体，横向偏移量恒等于当前对齐起点 <code>i - j</code>，即 <code>P[k]</code> 正对着 <code>T[i - j + k]</code>；<code>next[k]</code> 永远在 <code>P[k]</code> 正下方（<code>next[m]</code> 多出一格，用于整串命中后的回退）。格子上方是指针 <code>i</code> / <code>j</code>，下方小数字是下标。演示分两个阶段：<strong>阶段 A 逐格求 next</strong>，<strong>阶段 B 在主串上匹配</strong>，直接点「播放」就会依次走完。</p>
+
+<div class="viz-panel">
+  <div class="viz-stage"><div class="kmp-stage" id="rows"></div></div>
+  <div class="viz-msg" id="msg"></div>
+  <div class="viz-legend">
+    <span class="chip"><span class="sw" style="background:var(--viz-default)"></span>未参与</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-comparing)"></span>正在比较的两格 / 正在求的 next 格</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-active)"></span>j 指针、next 回退链</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-done)"></span>已匹配 / 求出的 next 值 / 命中区间</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-eliminated)"></span>本次比较不等（失配格）</span>
+  </div>
+  <div id="runner"></div>
+  <div class="viz-controls">
+    <label>主串 T <input type="text" id="inpT" maxlength="18" value="ababababcab"></label>
+    <label>模式串 P <input type="text" id="inpP" maxlength="6" value="ababc"></label>
+    <button id="btnRun" class="viz-btn primary">🔍 重新匹配</button>
+    <button id="btnRandom" class="viz-btn">🎲 随机样例</button>
+  </div>
+</div>
+
+<h2>复杂度分析</h2>
+
+<p>记主串长 <code>n</code>、模式串长 <code>m</code>。</p>
+
+<table>
+  <thead><tr><th>指标</th><th>最优</th><th>平均</th><th>最坏</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td>预处理（求 next）时间</td><td><code>O(m)</code></td><td><code>O(m)</code></td><td><code>O(m)</code></td><td><code>i</code> 递增 <code>m</code> 次；<code>j</code> 每轮至多 +1，回退总次数 ≤ <code>m</code>，摊还线性</td></tr>
+    <tr><td>匹配时间</td><td><code>O(n)</code></td><td><code>O(n)</code></td><td><code>O(n)</code></td><td>命中可出现 <code>O(n)</code> 次；比较次数 &lt; <code>2n</code>（<code>i</code> 单调，<code>j</code> 只增不减地摊还）</td></tr>
+    <tr><td>总时间</td><td><code>O(n+m)</code></td><td><code>O(n+m)</code></td><td><code>O(n+m)</code></td><td>对比朴素的最坏 <code>O(nm)</code>，如 <code>T = a^n</code>、<code>P = a^{m-1}b</code></td></tr>
+    <tr><td>空间复杂度</td><td colspan="3"><code>O(m)</code></td><td>只额外存 <code>next[0..m]</code>；匹配本身 <code>O(1)</code></td></tr>
+    <tr><td>稳定性 / 是否原地</td><td colspan="4">无稳定性概念；单趟扫描、原地推进，适合流式（在线）匹配</td></tr>
+  </tbody>
+</table>
+
+<h2>应用与局限</h2>
+
+<p><strong>应用</strong>：KMP 的前缀函数不只能做匹配——<strong>最小循环节</strong>长度是 <code>m - next[m]</code>（当 <code>m</code> 是它的倍数时）；「字符串周期 / border 计数」「把 <code>T + '#' + P</code> 当一个串求前缀函数，得到 <code>P</code> 的每个前缀在 <code>T</code> 中的最长匹配」都是同一套工具；把 fail 指针串起来还得到 <strong>fail 树</strong>，可离线回答前缀嵌套问题。</p>
+
+<p><strong>局限</strong>：① KMP 假定<strong>主串固定、只改动模式串</strong>；若主串要频繁插入/删除（可修改文本），线性匹配的前提不成立，应改用<strong>后缀树 / 后缀数组</strong>或动态字符串结构。② <code>next</code> 只描述「前缀 = 后缀」，无法处理带通配符、编辑距离类匹配，那需要 Z 函数（<strong>扩展 KMP</strong>，<code>z[i]</code> = <code>T[i..]</code> 与 <code>T</code> 的最长公共前缀，同样 <code>O(n)</code>，在「对齐点信息」上比 <code>next</code> 更直观）或 FFT / 自动机方法。③ <strong>多个模式串</strong>同时匹配时，逐条跑 KMP 是 <code>O(k(n+m))</code>，正确做法是把所有模式串建成 Trie 再补 fail 指针，即 <a href="https://oi-wiki.org/string/ac-automaton/" target="_blank" rel="noopener">AC 自动机</a>——可以视作「多模式串上的 KMP」，一次 <code>O(n + Σm + 命中数)</code>。</p>
+
+<div class="admonition info">
+<div class="admonition-title">参考</div>
+<p>Knuth, Morris &amp; Pratt, <em>Fast String Matching</em>, 1977；<a href="https://oi-wiki.org/string/kmp/" target="_blank" rel="noopener">OI Wiki · KMP</a>；<a href="https://oi-wiki.org/string/z-func/" target="_blank" rel="noopener">OI Wiki · Z 函数（扩展 KMP）</a>。</p>
+</div>
+
+</main>
+
+<script src="../assets/nav.js" data-base="../"></script>
+<script src="../assets/viz.js"></script>
+<script>
+(function () {
+  var rowsEl = document.getElementById("rows");
+  var inpT = document.getElementById("inpT");
+  var inpP = document.getElementById("inpP");
+  var runner = null;
+  var steps = [];
+
+  var T = "ababababcab";
+  var P = "ababc";
+  var PITCH = 33;           // 30px 宽 + 3px 间隙，必须与 CSS 中的 .cell 宽度 / gap 一致
+
+  // ---------- 纯算法：求 next（前缀长度约定）----------
+  function buildNext(Pat) {
+    var m = Pat.length, i, k;
+    var nxt = [];
+    nxt[0] = 0;
+    if (m >= 1) nxt[1] = 0;
+    for (i = 2; i <= m; i++) {
+      k = nxt[i - 1];
+      while (k > 0 && Pat.charAt(k) !== Pat.charAt(i - 1)) k = nxt[k];
+      if (Pat.charAt(k) === Pat.charAt(i - 1)) k++;
+      nxt[i] = k;
+    }
+    return nxt;             // 下标 0..m
+  }
+
+  // ---------- 阶段 A：逐格求 next ----------
+  function stepsPhaseA(Pat) {
+    var m = Pat.length;
+    var out = [];
+    var nxt = [0];
+    for (var z = 1; z <= m; z++) nxt[z] = undefined;
+
+    function push(msg, o) {
+      var s = {
+        phase: "A", shift: 0, shown: nxt.slice(0),
+        cur: -1, jIdx: -1, pCmp: -1, actChain: [], msg: msg
+      };
+      if (o) { for (var k in o) s[k] = o[k]; }
+      out.push(s);
+    }
+
+    push("【阶段 A：求 next 数组】约定 next[k] = P[0..k-1] 的最长「真前缀 = 真后缀」长度，" +
+      "k 就是「已经匹配了的字符数」。next[0] = 0 是哨兵（一个字符都没匹配上，无处可退），" +
+      "下面逐格求出 next[1.." + m + "]。本阶段不使用主串 T。",
+      { shown: nxt.slice(0) });
+
+    if (m === 1) {
+      nxt[1] = 0;
+      push("i=1：前缀长度 1（只有 P[0]=“" + Pat.charAt(0) + "”）没有<strong>非空</strong>的真前缀，" +
+        "按定义 next[1] = 0。", { cur: 1 });
+    } else {
+      nxt[1] = 0;
+      push("i=1：只有 P[0]=“" + Pat.charAt(0) + "” 一个字符，真前缀只能是空串 → next[1] = 0。",
+        { cur: 1 });
+    }
+
+    for (var i = 2; i <= m; i++) {
+      var c = Pat.charAt(i - 1);
+      var j = nxt[i - 1];
+      var chain = [];
+      push("i=" + i + "：求 next[" + i + "]，即前缀 “" + Pat.slice(0, i) + "” 的最长相等真前缀/真后缀长度。" +
+        "先取候选 j = next[" + (i - 1) + "] = " + j + "，把它接在真前缀末尾，比较 P[" + (i - 1) + "]=“" + c +
+        "” 与 P[j]=P[" + j + "]=“" + Pat.charAt(j) + "”。",
+        { cur: i, jIdx: j, pCmp: i - 1, actChain: chain });
+      while (j > 0 && Pat.charAt(j) !== c) {
+        var nj = nxt[j];
+        push("i=" + i + "，P[" + (i - 1) + "]=“" + c + "” ≠ P[" + j + "]=“" + Pat.charAt(j) + "”" +
+          " → 长度 " + (j + 1) + " 不成立，候选继续缩短：j ← next[" + j + "] = " + nj + "。",
+          { cur: i, jIdx: nj, pCmp: i - 1, actChain: chain.concat([j]) });
+        chain.push(j);
+        j = nj;
+      }
+      if (Pat.charAt(j) === c) {
+        nxt[i] = j + 1;
+        push("i=" + i + "，P[" + (i - 1) + "]=“" + c + "” == P[" + j + "]=“" + Pat.charAt(j) + "”" +
+          " → 在长度 " + j + " 的公共前后缀两端各接一个字符 → next[" + i + "] = " + (j + 1) + "（绿色已定）。",
+          { cur: i, jIdx: j, pCmp: i - 1, actChain: chain, val: nxt[i] });
+      } else {
+        nxt[i] = 0;
+        push("i=" + i + "，j 一路回退到 0，仍有 P[0]=“" + Pat.charAt(0) + "” ≠ P[" + (i - 1) + "]=“" + c +
+          "” → next[" + i + "] = 0（绿色已定）。",
+          { cur: i, jIdx: 0, pCmp: i - 1, actChain: chain, val: 0 });
+      }
+    }
+
+    var arr = [];
+    for (i = 0; i <= m; i++) arr.push(nxt[i]);
+    push("next 数组求解完成 ✅ P = “" + Pat + "”，next[0.." + m + "] = " + arr.join(", ") +
+      "。其中 next[" + m + "] = " + nxt[m] + " 表示整串命中后可以把 j 退回 " + nxt[m] +
+      " 继续找下一个（允许重叠的）出现位置。进入【阶段 B：在主串 T 上匹配】。",
+      { cur: -1, doneA: true, nxt: arr });
+    return out;
+  }
+
+  // ---------- 阶段 B：匹配 ----------
+  function stepsPhaseB(txt, pat, nxt) {
+    var n = txt.length, m = pat.length;
+    var out = [];
+    var i = 0, j = 0, cmp = 0, fallbacks = 0;
+    var hits = [];
+
+    function push(msg, o) {
+      var s = {
+        phase: "B", i: i, j: j, shift: i - j, cmpI: -1, cmpJ: -1, actNext: -1,
+        eq: false, hit: -1, hitLen: m, hits: hits.slice(0), cmpCount: cmp,
+        fallbacks: fallbacks, nxt: nxt, msg: msg
+      };
+      if (o) { for (var k in o) s[k] = o[k]; }
+      out.push(s);
+    }
+
+    push("【阶段 B】开始匹配：i = 0（主串指针，永不回退），j = 0（已匹配的模式串长度）。" +
+      "模式串整体滑到主串下标 0 处对齐，比较 T[0] 与 P[0]。T = “" + txt + "”（n=" + n +
+      "），P = “" + pat + "”（m=" + m + "）。",
+      { i: 0, j: 0, shift: 0 });
+
+    while (i < n) {
+      var eq = txt.charAt(i) === pat.charAt(j);
+      cmp++;
+      if (eq) {
+        var oldI = i, oldJ = j;
+        i++; j++;
+        if (j === m) {
+          hits.push(i - m);
+          push("第 " + cmp + " 次比较：i=" + oldI + ", j=" + oldJ + "，T[" + oldI + "]=“" + txt.charAt(oldI) +
+            "” == P[" + oldJ + "]=“" + pat.charAt(oldJ) + "” → 双双前进：i=" + i + "，j=" + j + " = m。" +
+            "<strong>整串匹配成功！</strong>在 T 的下标 " + (i - m) + " 处找到一次完整匹配 ✅（绿色区间 T[" +
+            (i - m) + ".." + (i - 1) + "]）。",
+            { cmpI: oldI, cmpJ: oldJ, eq: true, hit: i - m, hitLen: m });
+          var back = nxt[m];
+          j = back;
+          push("报告命中：起点 = i - m = " + (i - m) + "，目前共 " + hits.length + " 次命中（起始下标 " +
+            hits.join("、") + "）。继续找下一个，令 j ← next[" + m + "] = " + back +
+            "（i = " + i + " 不动），模式串相对主串右滑 " + (m - back) + " 格。",
+            { i: i, j: back, shift: i - back, actNext: m, hits: hits.slice(0), cmpCount: cmp, fallbacks: fallbacks });
+        } else {
+          push("第 " + cmp + " 次比较：i=" + oldI + ", j=" + oldJ + "，T[" + oldI + "]=“" + txt.charAt(oldI) +
+            "” == P[" + oldJ + "]=“" + pat.charAt(oldJ) + "” → 双双前进：i=" + i + "，j=" + j +
+            "，对齐起点 i-j = " + (i - j) + " 不变（模式串不滑动）。已匹配 “" + pat.slice(0, j) + "”。",
+            { cmpI: oldI, cmpJ: oldJ, eq: true });
+        }
+      } else if (j > 0) {
+        fallbacks++;
+        var oldJ2 = j, oldShift = i - j;
+        j = nxt[j];
+        push("第 " + cmp + " 次比较：i=" + i + ", j=" + oldJ2 + "，T[" + i + "]=“" + txt.charAt(i) +
+          "” ≠ P[" + oldJ2 + "]=“" + pat.charAt(oldJ2) + "”（失配）。j ← next[" + oldJ2 + "] = " + j +
+          "，<strong>i 不动</strong>：对齐起点从 " + oldShift + " 变为 " + (i - j) + "，模式串相对主串右滑 " +
+          (oldShift === i - j ? 0 : (i - j - oldShift)) + " 格。保留的 " + j + " 个已匹配字符仍与 T 重合。",
+          { cmpI: i, cmpJ: oldJ2, actNext: oldJ2 });
+      } else {
+        var oi = i;
+        i++;
+        push("第 " + cmp + " 次比较：i=" + oi + ", j=0，T[" + oi + "]=“" + txt.charAt(oi) +
+          "” ≠ P[0]=“" + pat.charAt(0) + "”（失配）。j = 0 无处可退 → 只能 i ← " + i +
+          "，模式串右移 1 格重新对齐。",
+          { cmpI: oi, cmpJ: 0, actNext: 0 });
+      }
+    }
+
+    var naive = naiveCompare(txt, pat);
+    var where = hits.length ? "出现 " + hits.length + " 次（起始下标 " + joinList(hits) + "）"
+      : "一次都没有出现（返回空集）";
+    var gain = naive - cmp;
+    push("KMP 完成 ✅ 模式串 “" + pat + "” 在 T 中" + where + "，共比较 " + cmp +
+      " 次，其中 j 回退 " + fallbacks + " 回；同一组数据朴素匹配比较 " + naive +
+      " 次（理论上界 n·m = " + (n * m) + " 次）" +
+      (gain > 0 ? "，KMP 少做了 " + gain + " 次比较" : "，两者接近，但 KMP 的比较次数存在线性上界 2n") +
+      "。主串指针 i 从 0 单调走到 " + n + "，全程没有回退——这正是 KMP 的全部优势。",
+      { cmpI: -1, cmpJ: -1, finished: true, naive: naive, nm: n * m });
+    return out;
+  }
+
+  function joinList(a) {
+    if (a.length === 2) return a[0] + " 和 " + a[1];
+    return a.join("、");
+  }
+
+  function naiveCompare(txt, pat) {
+    var n = txt.length, m = pat.length, c = 0;
+    for (var s = 0; s + m <= n; s++) {
+      for (var j = 0; j < m; j++) {
+        c++;
+        if (txt.charAt(s + j) !== pat.charAt(j)) break;
+      }
+    }
+    return c;
+  }
+
+  function buildSteps(txt, pat) {
+    var nxt = buildNext(pat);
+    return stepsPhaseA(pat).concat(stepsPhaseB(txt, pat, nxt));
+  }
+
+  // ---------- 渲染 ----------
+  function cell(v, st, idx, ptr, extraCls) {
+    var cls = "cell" + (st ? " " + st : "") + (extraCls ? " " + extraCls : "");
+    return '<div class="' + cls + '">' + (ptr ? '<span class="ptr">' + ptr + "</span>" : "") +
+      v + '<span class="idx">' + idx + "</span></div>";
+  }
+
+  function draw(step) {
+    var s = step || steps[0];
+    if (!s) return;
+    var h = "", i;
+    var m = P.length;
+    var shift = s.shift || 0;
+    var isA = s.phase === "A";
+
+    // --- 第 1 行：主串 T ---
+    var capT = isA
+      ? '主串 T（n = ' + T.length + '）—— 阶段 A 只用模式串自身信息，<b>本行暂不参与</b>'
+      : '主串 T —— <b>i = ' + s.i + '</b>' + (s.i >= T.length ? "（已扫到串尾）" : "（比较 T[" + s.i + "]）");
+    h += '<div class="kmp-cap">' + capT + "</div>";
+    h += '<div class="cell-stage">';
+    for (i = 0; i < T.length; i++) {
+      var stT = "";
+      if (isA) stT = "";
+      else {
+        var winStart = s.i - s.j;
+        if (s.hit >= 0 && i >= s.hit && i < s.hit + s.hitLen) stT = "done";
+        else if (i >= winStart && i < s.i) stT = "done";
+        if (i === s.cmpI) stT = s.eq ? "done" : "eliminated";
+        if (i === s.i && !s.finished) stT = "active";
+      }
+      h += cell(T.charAt(i), stT, i, (!isA && i === s.i && !s.finished) ? "i" : "");
+    }
+    h += "</div>";
+
+    // --- 第 2 行：模式串 P（与 next 行同一偏移，构成滑动的整体）---
+    var capP = isA
+      ? '模式串 P（m = ' + m + '）—— 阶段 A：橙色格是 P[i-1]（正在为它求 next），蓝色格是候选 j'
+      : '模式串 P —— <b>j = ' + s.j + '</b>（已匹配 ' + s.j + " 个字符），对齐起点 i - j = " + shift;
+    h += '<div class="kmp-cap" style="margin-left:' + (shift * PITCH) + 'px">' + capP + "</div>";
+    h += '<div class="cell-stage" style="margin-left:' + (shift * PITCH) + 'px">';
+    for (i = 0; i < m; i++) {
+      var stP = "";
+      if (isA) {
+        if (i === s.pCmp) stP = "comparing";
+        else if (i === s.jIdx) stP = "active";
+      } else {
+        if (i < s.j) stP = "done";
+        if (i === s.cmpJ) stP = s.eq ? "done" : "eliminated";
+        if (i === s.j && !s.finished) stP = "comparing";
+      }
+      h += cell(P.charAt(i), stP, i, (!isA && i === s.j && !s.finished) ? "j" : "");
+    }
+    h += "</div>";
+
+    // --- 第 3 行：next 数组（下标 0..m，与 P 同偏移）---
+    var capN = isA
+      ? 'next 数组 —— 下标 k = 已匹配字符数；绿色 = 已求出，橙色 = 正在求的 next[k]，蓝色 = 回退链上用到的候选'
+      : 'next 数组 —— 失配时 j ← next[j]' + (s.actNext >= 0
+        ? "；橙色/蓝色格 next[" + s.actNext + "] = " + s.nxt[s.actNext] + " 是本次用到的回退值"
+        : "（本步未使用回退）");
+    h += '<div class="kmp-cap" style="margin-left:' + (shift * PITCH) + 'px">' + capN + "</div>";
+    h += '<div class="cell-stage" style="margin-left:' + (shift * PITCH) + 'px">';
+    for (i = 0; i <= m; i++) {
+      var stN = "";
+      var val;
+      if (isA) {
+        var shown = s.shown[i];
+        val = (typeof shown === "number") ? shown : "·";
+        if (i === s.cur) stN = "comparing";
+        else if (typeof shown === "number" && i > 0) stN = "done";
+        else if (s.actChain && indexOfArr(s.actChain, i) >= 0) stN = "active";
+        if (i === 0) stN = "";
+      } else {
+        val = s.nxt[i];
+        if (i === 0) stN = "";
+        else if (i === s.actNext) stN = "active";
+        else stN = "done";
+      }
+      h += cell(val, stN, i, "", "nc");
+    }
+    h += "</div>";
+
+    rowsEl.innerHTML = h;
+  }
+
+  function indexOfArr(a, v) {
+    for (var i = 0; i < a.length; i++) if (a[i] === v) return i;
+    return -1;
+  }
+
+  // ---------- 交互 ----------
+  function sanitize(el, max) {
+    var v = String(el.value || "").toLowerCase().replace(/[^a-z]/g, "").slice(0, max);
+    el.value = v;
+    return v;
+  }
+
+  function oneShot(msg) {
+    steps = [{ phase: "A", shift: 0, shown: [0], cur: -1, jIdx: -1, pCmp: -1, actChain: [], op: "notice", msg: msg }];
+    resetDemo();
+  }
+
+  function apply(txt, pat) {
+    T = txt; P = pat;
+    steps = buildSteps(T, P);
+    resetDemo();
+  }
+
+  function resetDemo() {
+    if (!runner) {
+      runner = SV.runner({
+        host: document.getElementById("runner"),
+        msgEl: document.getElementById("msg"),
+        steps: steps,
+        render: draw
+      });
+    } else {
+      runner.setSteps(steps);
+      draw(null);
+    }
+  }
+
+  function doRun() {
+    var t = sanitize(inpT, 18);
+    var p = sanitize(inpP, 6);
+    if (!t || !p) {
+      oneShot("输入不完整：主串 T 需要 1~18 个小写字母，模式串 P 需要 1~6 个（其他字符会被忽略）。当前未开始匹配。");
+      return;
+    }
+    if (p.length > t.length) {
+      oneShot("模式串比主串还长（|P| = " + p.length + " &gt; |T| = " + t.length +
+        "），不可能出现。请把模式串改短一些或把主串写长一些。");
+      return;
+    }
+    apply(t, p);
+  }
+
+  // 随机样例：保证至少命中一次，且至少发生一次「j &gt; 0 的回退」
+  var POOL = ["a", "b", "c", "d"];
+  function randomLetters(alpha, len) {
+    var s = "";
+    for (var i = 0; i < len; i++) s += alpha.charAt(SV.randInt(0, alpha.length - 1));
+    return s;
+  }
+  function randomPat(alpha, m) {
+    var s = alpha.charAt(SV.randInt(0, alpha.length - 1));
+    for (var i = 1; i < m; i++) {
+      if (Math.random() < 0.5 && i > 0) {
+        s += s.charAt(SV.randInt(0, s.length - 1));      // 复用已有字符，制造自我重叠
+      } else {
+        s += alpha.charAt(SV.randInt(0, alpha.length - 1));
+      }
+    }
+    return s;
+  }
+  function placeAt(txt, pat, pos) {
+    return txt.slice(0, pos) + pat + txt.slice(pos + pat.length);
+  }
+
+  function doRandom() {
+    for (var attempt = 0; attempt < 120; attempt++) {
+      var m = SV.randInt(3, 5);
+      var k = SV.randInt(2, 3);
+      var alpha = POOL.slice(0, k).join("");
+      var p = randomPat(alpha, m);
+      var n = SV.randInt(Math.max(m + 9, 13), 18);
+      var t = randomLetters(alpha, n);
+      var nh = SV.randInt(1, 2);
+      for (var q = 0; q < nh; q++) {
+        var pos = SV.randInt(0, n - m);
+        t = placeAt(t, p, pos);
+      }
+      var st = buildSteps(t, p);
+      var last = st[st.length - 1];
+      if (last.hits.length >= 1 && last.fallbacks >= 1 && st.length <= 120) {
+        inpT.value = t; inpP.value = p;
+        apply(t, p);
+        return;
+      }
+    }
+    inpT.value = "ababababcab"; inpP.value = "ababc";
+    apply("ababababcab", "ababc");
+  }
+
+  // 首屏：固定样例
+  steps = buildSteps(T, P);
+  resetDemo();
+
+  document.getElementById("btnRun").addEventListener("click", doRun);
+  document.getElementById("btnRandom").addEventListener("click", doRandom);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>区间 DP：石子合并 - Saunfa Vision</title>
+<link rel="stylesheet" href="../assets/style.css">
+<style>
+  table.dp { border-collapse: separate; border-spacing: 3px; font-size: 12.5px; }
+  table.dp td {
+    min-width: 42px; height: 34px; padding: 2px 3px; text-align: center; vertical-align: middle;
+    border: 1px solid rgba(0,0,0,.16); border-radius: 3px; background: var(--viz-default);
+    color: rgba(0,0,0,.45); font-weight: 700; line-height: 1.15;
+  }
+  table.dp td.hdr { background: rgba(64,81,181,.10); color: var(--md-primary); font-size: 11.5px; border-color: transparent; }
+  table.dp td.hdrcur { background: var(--viz-active); color: #fff; font-size: 11.5px; border-color: transparent; }
+  table.dp td.corner { background: #eceff1; color: var(--md-text-light); font-size: 11px; border-color: transparent; }
+  table.dp td.filled { background: rgba(67,160,71,.20); color: #1b5e20; }
+  table.dp td.bound { background: rgba(67,160,71,.20); color: #1b5e20; }
+  table.dp td.na { background: var(--viz-eliminated); color: rgba(0,0,0,.3); }
+  table.dp td.src { background: var(--viz-active); color: #fff; }
+  table.dp td.cur { background: var(--viz-comparing); color: #222; }
+  table.dp td.path { background: var(--viz-done); color: #fff; }
+  table.dp td .note { display: block; font-size: 9px; font-weight: 400; opacity: .92; }
+  .piles { display: flex; gap: 5px; padding: 26px 4px 24px; }
+  .piles .cell { width: 42px; height: 42px; font-size: 14px; flex: none; }
+  .two-panel { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start; }
+  .panel-title { font-size: 13px; font-weight: 700; color: var(--md-primary); margin: 4px 0 6px; }
+  .sub-panel { margin-top: 14px; border-top: 1px dashed rgba(0,0,0,.15); padding-top: 10px; }
+  .merge-list { font-size: 13px; margin: 6px 0 0; padding-left: 20px; }
+  .merge-list li { margin: 2px 0; }
+  .bracket { font-family: Consolas, "Courier New", monospace; font-size: 13.5px; color: var(--md-text); }
+</style>
+</head>
+<body data-page="dp/interval-dp-stone">
+<main class="sv-content">
+
+<h1>区间 DP：石子合并</h1>
+
+<p><strong>石子合并</strong>是区间 DP（Interval DP）的标准入门题：<code>n</code> 堆石子排成一排，每次只能合并<strong>相邻</strong>的两堆，代价是这两堆的石子数之和，把所有石子并成一堆的最小总代价是多少。它的状态用「区间端点」描述，转移枚举<strong>最后一次合并的分界点</strong>，因此必须按<strong>区间长度</strong>从小到大填表——这一顺序是所有区间 DP 的共同命门。</p>
+
+<h2>算法原理</h2>
+
+<p>状态定义：<code>dp[l][r]</code> = 把第 <code>l</code> 堆到第 <code>r</code> 堆合并成一堆的<strong>最小代价</strong>。边界 <code>dp[i][i] = 0</code>（单堆不需要合并）。</p>
+
+<p>考虑最后一次合并：区间 <code>[l, r]</code> 一定先各自合并成了两堆，形式为 <code>[l, k]</code> 与 <code>[k+1, r]</code>（<code>l ≤ k &lt; r</code>），再把这两堆合起来，本步代价恰好是这两堆的石子总数，也就是 <code>sum(l..r)</code>。枚举分界点取最小：</p>
+
+<p><code>dp[l][r] = min over k∈[l, r-1] ( dp[l][k] + dp[k+1][r] ) + sum(l..r)</code></p>
+
+<p>区间和用<strong>前缀和</strong> <code>s[i] = a[1] + … + a[i]</code> 做到 <code>O(1)</code> 查询：<code>sum(l..r) = s[r] - s[l-1]</code>。同时记录取到最小值的 <code>k</code>（<code>bestK[l][r]</code>），最后自顶向下递归展开即可还原出<strong>括号化方案 / 合并顺序</strong>。</p>
+
+<p>填表顺序是关键：<code>dp[l][r]</code> 依赖的 <code>dp[l][k]</code> 和 <code>dp[k+1][r]</code> 都是<strong>更短的区间</strong>，所以外层必须枚举长度 <code>len = r - l + 1</code> 从 2 到 n，内层枚举左端点 <code>l</code>、再枚举分界点 <code>k</code>。若按 <code>l</code> 从大到小、<code>r</code> 从小到大写，也满足「子区间先算完」，同样正确；但绝不能用「一行一行」的顺序。</p>
+
+<pre><code>procedure stoneMerge(a[1..n]):
+    s[0] = 0
+    for i = 1 to n: s[i] = s[i-1] + a[i]        // 前缀和，O(1) 求区间和
+    for i = 1 to n: dp[i][i] = 0
+    for len = 2 to n:                           // 按区间长度从小到大
+        for l = 1 to n - len + 1:
+            r = l + len - 1
+            dp[l][r] = +∞
+            for k = l to r - 1:
+                cost = dp[l][k] + dp[k+1][r] + (s[r] - s[l-1])
+                if cost &lt; dp[l][r]:
+                    dp[l][r] = cost
+                    bestK[l][r] = k             // 记住分界点，用于重建方案
+    return dp[1][n]
+
+procedure printOrder(l, r):                     // 递归重建合并顺序
+    if l == r: return "a[" + l + "]"
+    k = bestK[l][r]
+    printOrder(l, k);  printOrder(k+1, r)
+    emit("合并区间 [" + l + ", " + r + "]，代价 " + (s[r] - s[l-1]))
+    return "(" + printOrder(l, k) + " " + printOrder(k+1, r) + ")"</code></pre>
+
+<div class="admonition tip">
+<div class="admonition-title">提示：为什么「最后一次合并」是好状态</div>
+<p>区间 DP 的通用套路是给区间加一个「最后一步」的语义：<code>[l, r]</code> 的最后一次合并把区间分成左右两段，且这个划分点 <code>k</code> 与「中间过程如何合并」无关，于是子问题彼此独立，最优子结构成立。同样的骨架直接搬到<strong>矩阵链乘</strong>（把 <code>sum(l..r)</code> 换成 <code>p[l-1]·p[k]·p[r]</code>）、<strong>多边形三角剖分</strong>（枚举包含顶点 <code>r</code> 的三角形）、<strong>能量项链</strong>（环形 + 三元代价）。</p>
+</div>
+
+<h2>可视化演示</h2>
+
+<div class="viz-panel">
+  <div class="viz-stage">
+    <div class="panel-title">石子堆（上方标注当前候选的两段）与前缀和 s[0..n]</div>
+    <div class="piles" id="piles"></div>
+    <div id="prefix"></div>
+    <div class="sub-panel">
+      <div class="two-panel">
+        <div>
+          <div class="panel-title">dp[l][r] 上三角表：行 = 左端点 l，列 = 右端点 r</div>
+          <div id="dptable"></div>
+        </div>
+        <div>
+          <div class="panel-title">bestK[l][r]：最优分界点（重建方案用）</div>
+          <div id="ktab"></div>
+        </div>
+      </div>
+      <div class="panel-title" style="margin-top:12px">合并顺序（回溯阶段出现）</div>
+      <div id="order"></div>
+    </div>
+  </div>
+  <div class="viz-msg" id="msg"></div>
+  <div class="viz-legend">
+    <span class="chip"><span class="sw" style="background:var(--viz-default)"></span>未填格</span>
+    <span class="chip"><span class="sw" style="background:rgba(67,160,71,.20)"></span>已确定 / 边界 0</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-comparing)"></span>正在计算的格 / 本步代价</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-active)"></span>两个来源子区间 / 当前维度</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-done)"></span>最优方案用到的区间</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-eliminated)"></span>不适用（r &lt; l）</span>
+  </div>
+  <div id="runner"></div>
+  <div class="viz-controls">
+    <button id="btnRandom" class="viz-btn">🎲 随机新数据</button>
+    <span style="font-size:12.5px;color:var(--md-text-light)">固定 n = 5 堆、每堆 2~9 颗；按区间长度 len = 1 → 5 逐层填表。</span>
+  </div>
+</div>
+
+<h2>复杂度分析</h2>
+
+<table>
+  <thead><tr><th>指标</th><th>量级</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td>最优时间复杂度</td><td><code>O(n³)</code></td><td>状态 <code>O(n²)</code> 个，每个状态枚举 <code>O(n)</code> 个分界点；与数据无关</td></tr>
+    <tr><td>平均时间复杂度</td><td><code>O(n³)</code></td><td>三层循环 <code>len × l × k</code>，约 n³/6 次转移</td></tr>
+    <tr><td>最坏时间复杂度</td><td><code>O(n³)</code></td><td>同上；不加优化的区间 DP 普遍是这一阶</td></tr>
+    <tr><td>空间复杂度</td><td><code>O(n²)</code></td><td><code>dp</code> 与 <code>bestK</code> 各一张上三角表；前缀和 <code>O(n)</code></td></tr>
+    <tr><td>环形版本</td><td><code>O((2n)³) = O(n³)</code></td><td>拆环成 2n 长链后枚举长度为 n 的区间，常数约为 8 倍</td></tr>
+  </tbody>
+</table>
+
+<div class="admonition warning">
+<div class="admonition-title">注意：环形合并与四边形不等式优化</div>
+<p><strong>环形石子合并</strong>（n 堆围成一圈，任意位置都可「剪开」）不能直接套链式 DP，因为不存在固定的 1 号位。标准做法是<strong>拆环成链</strong>：把数组复制一份接在自己后面得到长度 <code>2n</code> 的链，在这条链上做区间 DP，答案取 <code>min over i ( dp[i][i+n-1] )</code>（枚举「断开的那条边」）。若求最大代价则把 <code>min</code> 换成 <code>max</code>。注意此时区间长度上限是 <code>n</code>，不能填到 <code>len &gt; n</code>，否则会把同一堆算两次。</p>
+<p><strong>四边形不等式优化</strong>：当区间代价函数 <code>w(l, r)</code> 满足四边形不等式（<code>w(a,c)+w(b,d) ≤ w(a,d)+w(b,c)</code>，对 <code>a ≤ b ≤ c ≤ d</code>）与区间单调性（<code>w(b,c) ≤ w(a,d)</code>），可以证明 <code>dp</code> 也满足四边形不等式，从而最优分界点 <code>bestK[l][r]</code> 关于 <code>l</code>、<code>r</code> 单调：存在 <code>bestK[l][r-1] ≤ bestK[l][r] ≤ bestK[l+1][r]</code>。于是把内层 <code>k</code> 的枚举范围限制在这个窗口内，总复杂度降到 <code>O(n²)</code>；实现上常写成 <code>k</code> 从 <code>bestK[l][r-1]</code> 枚举到 <code>bestK[l+1][r]</code>。石子合并的 <code>w(l,r) = sum(l..r)</code> 恰好满足条件，因此可优化；而「任意带负数、代价函数不单调」的变形就不能直接用——优化前必须先验证单调性成立。</p>
+</div>
+
+<h2>应用与局限</h2>
+
+<p>同一套「枚举最后一次分割」的骨架覆盖了一大类题：<strong>矩阵链乘</strong>（最小标量乘法次数，代价项换成三个维度相乘）、<strong>多边形三角剖分</strong>（枚举与某条边组成三角形的第三个顶点）、<strong>能量项链</strong>（环形 + 三元头尾能量相乘）、<strong>括号密码 / 凸多边形染色</strong>、<strong>统计子区间</strong>型问题（如「最长合法括号子串」「合并果子」的对偶版本）、以及最优二叉搜索树（其代价函数同样满足四边形不等式，可 O(n²) 优化）。凡「把一段区间劈成两半、两半独立求解再合并」的题目都属此家族。</p>
+
+<p>局限：一是 <code>O(n³)</code> 的状态转移使可处理规模通常限制在 <code>n ≤ 300</code> 左右，需要靠四边形不等式或分治优化降阶；二是区间 DP 只对<strong>连续区间</strong>有效，「任意两堆合并」的合并果子问题应改用哈夫曼贪心（优先队列），强行套区间 DP 反而会得到错误答案——这正是「相邻约束」与「自由选择」的差别；三是需要输出方案时必须额外保存 <code>bestK</code> 表，内存翻倍。</p>
+
+<div class="admonition info">
+<div class="admonition-title">参考</div>
+<p><a href="https://oi-wiki.org/dp/interval/" target="_blank" rel="noopener">OI Wiki 区间 DP</a>；<a href="https://oi-wiki.org/optimize/quadrangle/" target="_blank" rel="noopener">OI Wiki 四边形不等式优化</a>；《算法导论》动态规划章节（矩阵链乘）。</p>
+</div>
+
+</main>
+
+<script src="../assets/nav.js" data-base="../"></script>
+<script src="../assets/viz.js"></script>
+<script>
+(function () {
+  "use strict";
+  var N = 5;
+  var pilesEl = document.getElementById("piles");
+  var prefixEl = document.getElementById("prefix");
+  var dpEl = document.getElementById("dptable");
+  var kEl = document.getElementById("ktab");
+  var orderEl = document.getElementById("order");
+  var steps = [];
+  var runner = null;
+
+  function defaultPiles() { return [2, 5, 6, 3, 4]; }
+  function randomPiles() {
+    var a = [];
+    for (var i = 0; i < N; i++) a.push(SV.randInt(2, 9));
+    return a;
+  }
+  function copyD(dp) {
+    var r = [];
+    for (var i = 0; i < dp.length; i++) r.push(dp[i].slice());
+    return r;
+  }
+  function hasIn(list, l, r) {
+    if (!list) return false;
+    for (var k = 0; k < list.length; k++) if (list[k][0] === l && list[k][1] === r) return true;
+    return false;
+  }
+  function findSrc(srcs, l, r) {
+    if (!srcs) return null;
+    for (var k = 0; k < srcs.length; k++) if (srcs[k][0] === l && srcs[k][1] === r) return srcs[k][2];
+    return null;
+  }
+  function inRange(lo, hi, x) { return x >= lo && x <= hi; }
+
+  // 用 bestK 递归重建：内节点后序（先子后父），得到可执行合并顺序与括号化串
+  function rebuild(a, bestK) {
+    var n = a.length;
+    var order = [], cum = 0;
+    function walk(l, r) {
+      if (l === r) return "a" + l;
+      var k = bestK[l + "," + r];
+      var ls = walk(l, k);
+      var rs = walk(k + 1, r);
+      var w = 0;
+      for (var x = l; x <= r; x++) w += a[x - 1];
+      cum += w;
+      order.push("合并第 " + l + " ~ " + r + " 堆（" + ls + " ＋ " + rs + " → 一堆），本步代价 " + w + "，累计 " + cum);
+      return "（" + ls + " ＋ " + rs + "）";
+    }
+    var top = walk(1, n);
+    return { order: order, top: top, cum: cum };
+  }
+
+  // 快照字段：{a, s, dp, ktab, cur, srcs, band, row, col, split, mergeSeg, order, top, path, cum, last, msg}
+  function buildSteps(a) {
+    var n = a.length;
+    var out = [];
+    var s = [0];
+    for (var i = 1; i <= n; i++) s.push(s[i - 1] + a[i - 1]);
+    var dp = [], kt = [];
+    for (var l = 0; l <= n + 1; l++) {
+      var dline = [], kline = [];
+      for (var r = 0; r <= n + 1; r++) { dline.push(null); kline.push(null); }
+      dp.push(dline); kt.push(kline);
+    }
+    var bestK = {};
+
+    function snap(extra) {
+      var st = {
+        a: a, s: s, dp: copyD(dp), ktab: copyD(kt), cur: null, srcs: null, band: null,
+        row: null, col: null, split: null, mergeSeg: null, order: null, top: null,
+        path: null, cum: null, last: false, msg: ""
+      };
+      for (var k in extra) {
+        if (Object.prototype.hasOwnProperty.call(extra, k)) st[k] = extra[k];
+      }
+      out.push(st);
+    }
+    function sum(l0, r0) { return s[r0] - s[l0 - 1]; }
+
+    snap({ msg: "n = " + n + " 堆石子：" + a.join("、") + "（总数 " + s[n] + "）。每次只能合并<b>相邻</b>两堆，代价 = 合并后新堆的石子数。" +
+      "dp[l][r] = 把第 l ~ r 堆合成一堆的最小代价；最后一步把区间分成 [l, k] 与 [k+1, r] 两段，故 dp[l][r] = min(dp[l][k] + dp[k+1][r]) + sum(l..r)。点击「播放」或「下一步」开始。" });
+
+    var sp = [];
+    for (var q = 0; q <= n; q++) sp.push(s[q]);
+    snap({ band: 1, msg: "前缀和 s[0.." + n + "] = " + sp.join(" ") + "，于是区间和 sum(l..r) = s[r] − s[l−1] 是 O(1) 的。" +
+      "例如 sum(2..4) = s[4] − s[1] = " + (s[4] - s[1]) + "，正好等于第 2、3、4 堆之和 " + (a[1] + a[2] + a[3]) + "。" });
+
+    for (var d = 1; d <= n; d++) {
+      dp[d][d] = 0;
+      snap({ band: 1, row: d, col: d, msg: "边界：dp[" + d + "][" + d + "] = 0 —— 第 " + d + " 堆自己就是一堆，不需要任何合并。主对角线全部填 0。" });
+    }
+
+    for (var len = 2; len <= n; len++) {
+      snap({ band: len, msg: "开始填长度 len = " + len + " 的区间（对角线），共 " + (n - len + 1) +
+        " 个：[1," + len + "]、[2," + (len + 1) + "] … [" + (n - len + 1) + "," + n + "]。它们需要的子区间长度都小于 " + len + "，已经全部算好——这就是「按长度从小到大」枚举的意义。" });
+      for (var l2 = 1; l2 <= n - len + 1; l2++) {
+        var r2 = l2 + len - 1;
+        var w = sum(l2, r2);
+        var best = null, bk = null, curSum = null, curL = null, curR = null;
+        for (var k2 = l2; k2 <= r2 - 1; k2++) {
+          curSum = dp[l2][k2] + dp[k2 + 1][r2] + w;
+          curL = dp[l2][k2]; curR = dp[k2 + 1][r2];
+          var improve = (best === null || curSum < best);
+          if (improve) { best = curSum; bk = k2; }
+          snap({ band: len, row: l2, col: r2, cur: [l2, r2], split: [l2, k2, k2 + 1, r2],
+            srcs: [[l2, k2, "左段"], [k2 + 1, r2, "右段"]],
+            msg: "len = " + len + "，dp[" + l2 + "][" + r2 + "]：k = " + k2 + " → dp[" + l2 + "][" + k2 + "] + dp[" + (k2 + 1) + "][" + r2 + "] + sum(" + l2 + ".." + r2 + ") = " +
+              curL + " + " + curR + " + " + w + " = " + curSum + " → " +
+              (improve ? "更优，更新当前最优 k = " + bk + "、代价 " + best : "不优于当前最优（k = " + bk + "，代价 " + best + "），跳过") + "。" });
+        }
+        dp[l2][r2] = best;
+        kt[l2][r2] = bk;
+        bestK[l2 + "," + r2] = bk;
+        snap({ band: len, row: l2, col: r2, msg: "dp[" + l2 + "][" + r2 + "] = " + best + "，最优分界点 bestK[" + l2 + "][" + r2 + "] = " + bk +
+          "（右表同步记录）：区间 [" + l2 + ", " + r2 + "] 最后一步是把 [" + l2 + ", " + bk + "] 与 [" + (bk + 1) + ", " + r2 + "] 合成一堆，加上本步的 " + w + "。" });
+      }
+    }
+
+    var answer = dp[1][n];
+    snap({ row: 1, col: n, msg: "填表结束：dp[1][" + n + "] = " + answer + " 就是把 " + n + " 堆全合并的最小总代价。答案在<strong>右上角</strong>——区间 DP 的答案永远是整区间。" });
+
+    var rec = rebuild(a, bestK);
+    snap({ order: [], top: rec.top, msg: "用 bestK 表自顶向下递归重建方案：" + rec.top + "。下面按「先子后父」的可执行顺序逐步高亮。" });
+
+    // 回溯高亮：按后序遍历顺序逐格标绿
+    var seq = [];
+    (function collect(l0, r0) {
+      if (l0 === r0) return;
+      var k0 = bestK[l0 + "," + r0];
+      collect(l0, k0);
+      collect(k0 + 1, r0);
+      seq.push([l0, r0]);
+    })(1, n);
+
+    var shown = [], shownOrder = [];
+    var runSum = 0;
+    for (var t = 0; t < seq.length; t++) {
+      var pl = seq[t][0], pr = seq[t][1];
+      shown.push([pl, pr]);
+      shownOrder.push(rec.order[t]);
+      runSum += sum(pl, pr);
+      snap({ path: shown.slice(), mergeSeg: [pl, pr], row: pl, col: pr, cum: runSum,
+        order: shownOrder.slice(), top: rec.top,
+        msg: "执行第 " + (t + 1) + " 步：" + rec.order[t] + "。" });
+    }
+    snap({ last: true, path: shown, cum: runSum, row: null, col: null, mergeSeg: null,
+      order: shownOrder.slice(), top: rec.top,
+      msg: "最小总代价 = " + answer + (runSum === answer ? " ✅" : " ⚠") + " 合并顺序：" + rec.order.join("；") +
+        "。括号化方案 " + rec.top + "，共 " + (n - 1) + " 次合并、累计代价 " + runSum + "。" });
+    return out;
+  }
+
+  function drawPiles(s) {
+    var h = '<div class="piles">';
+    for (var i = 1; i <= s.a.length; i++) {
+      var cls = "cell";
+      var ptr = "";
+      if (s.split) {
+        if (inRange(s.split[0], s.split[1], i)) { cls = "active"; ptr = "左段"; }
+        if (inRange(s.split[2], s.split[3], i)) { cls = "active"; ptr = "右段"; }
+      } else if (s.mergeSeg && inRange(s.mergeSeg[0], s.mergeSeg[1], i)) {
+        cls = "done"; ptr = "本步合并";
+      }
+      h += '<div class="' + cls + '" style="width:42px;height:42px;flex:none">' + s.a[i - 1] +
+        (ptr ? '<span class="ptr">' + ptr + "</span>" : "") + '<span class="idx">' + i + "</span></div>";
+    }
+    h += "</div>";
+    pilesEl.innerHTML = h;
+  }
+
+  function drawPrefix(s) {
+    var h = '<div class="piles" style="padding:20px 4px 24px">';
+    for (var i = 0; i <= s.a.length; i++) {
+      h += '<div class="cell" style="width:42px;height:30px;font-size:12.5px;flex:none;background:' +
+        (i === 0 ? "#eceff1" : "rgba(67,160,71,.20)") + '">' + s.s[i] + '<span class="idx">s[' + i + "]</span></div>";
+    }
+    h += "</div>";
+    prefixEl.innerHTML = h;
+  }
+
+  function drawTables(s) {
+    var n = s.a.length;
+    function build(mat, isK) {
+      var h = '<table class="dp"><tr><td class="corner">' + (isK ? "k＼r" : "l＼r") + "</td>";
+      for (var c = 1; c <= n; c++) {
+        h += '<td class="' + (s.col === c ? "hdrcur" : "hdr") + '">' + c + "</td>";
+      }
+      h += "</tr>";
+      for (var r0 = 1; r0 <= n; r0++) {
+        h += '<tr><td class="' + (s.row === r0 ? "hdrcur" : "hdr") + '">' + r0 + "</td>";
+        for (var c0 = 1; c0 <= n; c0++) {
+          var v = mat[r0][c0];
+          var cls, note = isK ? null : findSrc(s.srcs, r0, c0);
+          if (c0 < r0) cls = "na";
+          else if (s.cur && s.cur[0] === r0 && s.cur[1] === c0) cls = "cur";
+          else if (note) cls = "src";
+          else if (!isK && hasIn(s.path, r0, c0)) cls = "path";
+          else if (v !== null) cls = r0 === c0 && !isK ? "bound" : "filled";
+          else cls = "todo";
+          h += '<td class="' + cls + '">' + (v === null ? "·" : v) +
+            (note ? '<span class="note">' + note + "</span>" : "") + "</td>";
+        }
+        h += "</tr>";
+      }
+      return h + "</table>";
+    }
+    dpEl.innerHTML = build(s.dp, false);
+    kEl.innerHTML = build(s.ktab, true);
+  }
+
+  function drawOrder(s) {
+    if (!s.order) {
+      orderEl.innerHTML = '<span style="font-size:12.5px;color:var(--md-text-light)">填表完成后，这里给出可执行的合并步骤与括号化方案。</span>';
+      return;
+    }
+    var h = "";
+    if (s.order.length === 0) {
+      h += '<span style="font-size:12.5px;color:var(--md-text-light)">括号化方案已推出：' + s.top + "，逐步执行见下。</span>";
+    } else {
+      h += '<ul class="merge-list">';
+      for (var i = 0; i < s.order.length; i++) h += "<li>" + (i + 1) + ". " + s.order[i] + "</li>";
+      h += "</ul>";
+    }
+    if (s.cum !== null && s.cum !== undefined) {
+      h += '<div class="bracket" style="margin-top:6px">' + (s.last
+        ? "括号化 " + s.top + " ／ 累计代价 " + s.cum + " ＝ dp[1][" + s.a.length + "]"
+        : "括号化 " + s.top + " ／ 当前累计代价 " + s.cum) + "</div>";
+    }
+    orderEl.innerHTML = h;
+  }
+
+  function draw(step) {
+    var s = step || steps[0];
+    if (!s) return;
+    drawPiles(s);
+    drawPrefix(s);
+    drawTables(s);
+    drawOrder(s);
+  }
+
+  function start(a) {
+    steps = buildSteps(a);
+    if (!runner) {
+      runner = SV.runner({
+        host: document.getElementById("runner"),
+        msgEl: document.getElementById("msg"),
+        steps: steps,
+        render: draw
+      });
+    } else {
+      runner.setSteps(steps);
+      draw(null);
+    }
+  }
+
+  document.getElementById("btnRandom").addEventListener("click", function () { start(randomPiles()); });
+
+  window.__SV_TEST__ = { buildSteps: buildSteps, draw: draw, start: start, rebuild: rebuild, n: N };
+  start(defaultPiles());
+})();
+</script>
+</body>
+</html>

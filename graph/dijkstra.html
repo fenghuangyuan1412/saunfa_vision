@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dijkstra 最短路 - Saunfa Vision</title>
+<link rel="stylesheet" href="../assets/style.css">
+<style>
+.g-wrap { display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-start; }
+.g-svg { flex: 0 0 auto; }
+.g-svg svg { display: block; }
+.g-svg text { font-family: -apple-system, "Segoe UI", Roboto, "Noto Sans SC", sans-serif; }
+.g-side { min-width: 250px; flex: 1; }
+.box-label { font-size: 12.5px; color: var(--md-text-light); font-weight: 700; display: block; margin-bottom: 6px; }
+.sv-content table.tb { width: 100%; margin: 0 0 12px; font-size: 12.5px; }
+.sv-content table.tb th, .sv-content table.tb td { padding: 3px 7px; text-align: center; }
+.sv-content table.tb td.c-default { background: #fff; color: #222; }
+.sv-content table.tb td.c-comparing { background: var(--viz-comparing); color: #222; font-weight: 700; }
+.sv-content table.tb td.c-swapping { background: var(--viz-swapping); color: #fff; font-weight: 700; }
+.sv-content table.tb td.c-active { background: var(--viz-active); color: #fff; font-weight: 700; }
+.sv-content table.tb td.c-done { background: var(--viz-done); color: #fff; font-weight: 700; }
+.sv-content table.tb td.c-eliminated { background: var(--viz-eliminated); color: rgba(0,0,0,.4); }
+.tags { display: flex; flex-wrap: wrap; gap: 4px; min-height: 30px; background: #fff;
+  border: 1px solid var(--md-border); border-radius: 4px; padding: 6px; }
+.tag { font-size: 11.5px; padding: 2px 8px; border-radius: 10px; background: rgba(64,81,181,.1);
+  color: var(--md-primary); border: 1px solid rgba(64,81,181,.35); }
+.tag.done { background: var(--viz-done); color: #fff; border-color: #1b5e20; }
+.viz-controls select { font: inherit; font-size: 13.5px; padding: 4px 6px;
+  border: 1px solid rgba(0,0,0,.24); border-radius: 3px; background: #fff; color: var(--md-text); }
+</style>
+</head>
+<body data-page="graph/dijkstra">
+<main class="sv-content">
+
+<h1>Dijkstra 最短路</h1>
+
+<p><strong>Dijkstra 算法</strong>求解<strong>非负权图</strong>上的<strong>单源最短路</strong>：从源点出发，每次从未确定的结点中取出「当前距离最小」的那个并<strong>定稿</strong>，再用它去松弛自己的出边。整个过程像水波一样由近及远地扩散，因此也被称为「标记设定（Label Setting）算法」。</p>
+
+<h2>算法原理</h2>
+
+<p>维护距离标号 <code>d[]</code>：源点 <code>d[s]=0</code>，其余初始化为 <code>+∞</code>；<code>prev[]</code> 记录最短树中的父结点，用于事后还原路径。核心只有两个动作：</p>
+
+<p><strong>① 取最小（贪心）</strong>：在所有<strong>尚未定稿</strong>的结点里取 <code>d</code> 最小者 <code>u</code>，此时 <code>d[u]</code> 已经是源点到 <code>u</code> 的最终最短距离，可以把 <code>u</code> 永久标记（定稿）。<br>
+<strong>② 松弛（relax）</strong>：对 <code>u</code> 的每条出边 <code>(u,v,w)</code> 尝试「绕道 <code>u</code> 是否更近」：</p>
+
+<pre><code>if (d[u] + w &lt; d[v]) {
+    d[v]    = d[u] + w;     // 发现更短的路，更新距离
+    prev[v] = u;            // 记录前驱，最后用它回溯路径
+}</code></pre>
+
+<p><strong>正确性直觉</strong>：设 <code>u</code> 是未定稿结点中 <code>d</code> 最小者。任一从 <code>s</code> 到 <code>u</code> 且中途经过其它未定稿结点 <code>x</code> 的路径，长度必 <code>≥ d[x] ≥ d[u]</code>——因为边权非负，多绕一段只会更远，<strong>不可能绕出更短的路</strong>。于是 <code>d[u]</code> 无法再被改进，可以放心定稿；归纳地，每个结点定稿时拿到的都是最短距离，且结点的定稿顺序恰好是 <code>d</code> 的非递减序。</p>
+
+<pre><code>procedure Dijkstra(s):
+    for v in V: d[v] = +∞; prev[v] = NIL
+    d[s] = 0;  S = ∅                    // S = 已定稿集合
+    while |S| &lt; |V|:
+        u = 未定稿结点中 d 最小者         // 朴素实现：O(V) 线性扫描
+        if d[u] = +∞: break             // 其余结点从 s 不可达
+        S.add(u)                         // d[u] 从此定稿
+        for (u, v, w) in E:              // 松弛 u 的每条出边
+            if d[u] + w &lt; d[v]:
+                d[v] = d[u] + w
+                prev[v] = u</code></pre>
+
+<h3>三种「取最小」的实现</h3>
+
+<table>
+  <thead><tr><th>实现方式</th><th>时间复杂度</th><th>适用场景</th></tr></thead>
+  <tbody>
+    <tr><td>朴素数组扫描</td><td><code>O(V²)</code></td><td>稠密图（<code>E ≈ V²</code>），实现最简、常数最小</td></tr>
+    <tr><td>二叉堆（优先队列）</td><td><code>O((V+E) log V)</code></td><td>稀疏图首选；常见写法是<strong>懒删除</strong>：入队 <code>(d,v)</code>，出队时若 <code>d &gt; d[v]</code> 说明是过期记录，直接丢弃</td></tr>
+    <tr><td>配对堆 / Fibonacci 堆</td><td><code>O(E + V log V)</code></td><td>支持 <code>O(1)</code> decrease-key 即可达到此界；配对堆实测常数友好，Fibonacci 堆竞赛中极少手写</td></tr>
+  </tbody>
+</table>
+
+<p><strong>路径还原</strong>：从终点 <code>t</code> 出发沿 <code>prev[]</code> 一路回溯到 <code>s</code>，反序即得一条最短路径。最短路径<strong>未必唯一</strong>，<code>prev[]</code> 只保留最先取到的那条。若只关心 <code>s → t</code> 一个点对，<strong><code>t</code> 一定稿就可以立即停止</strong>（本页演示为求全部可达点的最短路，会跑完所有可达结点）。</p>
+
+<div class="admonition warning">
+<div class="admonition-title">警告：Dijkstra 不能处理负权边</div>
+<p>「取最小即定稿」完全依赖<strong>边权非负</strong>。出现负权边时，已定稿的结点仍可能被后来发现的「先绕远、再用负边收回来」的路径改进，而 Dijkstra <strong>永不回头</strong>修改定稿结点，答案就会错。最小的反例只有 3 个结点：边为 <code>A→B = 2</code>、<code>A→C = 5</code>、<code>C→B = −4</code>（源点 A）。</p>
+<table>
+  <thead><tr><th>轮次</th><th>Dijkstra 的动作</th><th><code>d[B]</code></th><th><code>d[C]</code></th></tr></thead>
+  <tbody>
+    <tr><td>初始</td><td><code>d[A]=0</code></td><td>∞</td><td>∞</td></tr>
+    <tr><td>1</td><td>定稿 A，松弛 <code>A→B</code>、<code>A→C</code></td><td><b>2</b></td><td>5</td></tr>
+    <tr><td>2</td><td>取最小：<code>2 &lt; 5</code>，<strong>B 定稿</strong>，此后不再更新</td><td>2（定稿）</td><td>5</td></tr>
+    <tr><td>3</td><td>定稿 C，松弛 <code>C→B</code>：<code>5 + (−4) = 1 &lt; 2</code>，但 B 已定稿，被忽略</td><td>2 ❌</td><td>5</td></tr>
+  </tbody>
+</table>
+<p>真实最短距离是 <code>d[B] = 1</code>（路径 <code>A→C→B</code>），Dijkstra 给出 <code>2</code>。<strong>带负权的图请改用 <a href="spfa.html">Bellman-Ford / SPFA</a></strong>；若图中存在<strong>负环</strong>，最短路无定义（可无限绕环）。在正权图上，Dijkstra 的速度与稳定性仍是首选。</p>
+</div>
+
+<h2>可视化演示</h2>
+
+<p>下方是一张 <strong>7 结点带权无向图</strong>（同一条边双向可走、权值相同，故一定连通）。可选择<strong>源点</strong>与<strong>终点</strong>：动画按「弹出最小 → 逐边松弛 → 定稿」推进，右侧同步显示距离表 <code>d[]</code>、前驱 <code>prev[]</code> 与已确定集合 <code>S</code>，最后一步沿 <code>prev[]</code> 回溯标出源点到终点的最短路径。结点圆内是编号，圆下方是当前距离标号。</p>
+
+<div class="viz-panel">
+  <div class="viz-stage">
+    <div class="g-wrap">
+      <div class="g-svg" id="gsvg"></div>
+      <div class="g-side">
+        <span class="box-label">距离表 d[] 与前驱（∞ 表示尚未抵达）</span>
+        <table class="tb" id="distTbl"></table>
+        <span class="box-label">已确定集合 S（按定稿顺序）</span>
+        <div class="tags" id="doneSet"></div>
+      </div>
+    </div>
+  </div>
+  <div class="viz-msg" id="msg"></div>
+  <div class="viz-legend">
+    <span class="chip"><span class="sw" style="background:var(--viz-default)"></span>未确定</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-active)"></span>本轮弹出并定稿的结点</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-comparing)"></span>正在松弛的边 / 邻居</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-swapping)"></span>距离被更新的那一下</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-done)"></span>已定稿 / 最短路径</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-eliminated)"></span>不可达</span>
+  </div>
+  <div id="runner"></div>
+  <div class="viz-controls">
+    <label>源点 <select id="srcSel"></select></label>
+    <label>终点 <select id="dstSel"></select></label>
+    <button id="btnRand" class="viz-btn">🎲 随机新图</button>
+  </div>
+</div>
+
+<h2>复杂度分析</h2>
+
+<table>
+  <thead><tr><th>指标</th><th>量级</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td>时间（朴素扫描）</td><td><code>O(V²)</code></td><td>定稿 V 次，每次线性扫最小 O(V)；松弛阶段总共扫过全部边 O(E)</td></tr>
+    <tr><td>时间（二叉堆优化）</td><td><code>O((V + E) log V)</code></td><td>每条边至多引起一次入队，出入队 O(log V)；稀疏图（<code>E = O(V)</code>）即 <code>O(V log V)</code></td></tr>
+    <tr><td>时间（配对堆 / Fibonacci 堆）</td><td><code>O(E + V log V)</code></td><td>理论最优；均摊意义下的 decrease-key 代价</td></tr>
+    <tr><td>空间</td><td><code>O(V + E)</code></td><td>邻接表 + <code>d[]</code> + <code>prev[]</code> + 定稿标记 + 堆</td></tr>
+    <tr><td>边权要求</td><td colspan="2">必须<strong>非负</strong>；零权边无影响，出现负权边结果错误</td></tr>
+  </tbody>
+</table>
+
+<h2>应用与局限</h2>
+
+<p><strong>应用</strong>：路网导航与地图最短路（距离天然非负）、OSPF 等链路状态路由协议、正权单源最短路类题目，以及若干扩展：</p>
+
+<ul>
+  <li><strong>次短路</strong>：把状态扩为 <code>d[v][0/1]</code>（最短、次短），松弛时同时维护两层并允许同点重复入队，跑满 <code>2V</code> 次定稿即可。</li>
+  <li><strong>分层图最短路</strong>：把「已经使用过几次免费/打折机会」作为新的一维，构造 <code>V × (k+1)</code> 个结点，跨层边权可为 0（仍非负），照常跑 Dijkstra。</li>
+  <li><strong>A* 搜索</strong>：优先队列的键换成 <code>f(v) = d[v] + h(v)</code>，其中启发函数 <code>h</code> 是「到终点的距离下界」（如欧氏直线距离）。<code>h</code> 可采纳时结论仍最优，但扩展结点数显著减少，是地图与游戏中的标准做法。</li>
+  <li><strong>Dijkstra 与 BFS / 01-BFS 的关系</strong>：边权全为 1 时退化为 BFS（队列天然有序）；边权只有 0 和 1 时用双端队列 <code>deque</code> 可以做到 <code>O(V+E)</code>。</li>
+</ul>
+
+<p><strong>局限</strong>：① 不支持负权边（见上方反例）；② 属<strong>单源</strong>算法，多源最短路要么反复跑（堆优化 <code>O(V(V+E)log V)</code>），要么改用 <a href="floyd.html">Floyd</a>（<code>O(V³)</code>，适合 <code>V ≤ 400</code> 且需要任意两点答案）；③ 稠密图上堆的 <code>log</code> 开销可能不如朴素 <code>O(V²)</code>；④ 需要显式建图，隐式巨大状态空间要用哈希表存 <code>d[]</code>，此时常数明显上升。</p>
+
+<div class="admonition info">
+<div class="admonition-title">参考</div>
+<p><a href="https://oi-wiki.org/graph/shortest-path/" target="_blank" rel="noopener">OI Wiki — 最短路问题（Dijkstra / Bellman-Ford / SPFA / Floyd）</a>；Introduction to Algorithms 第 24 章；同站姊妹页：<a href="spfa.html">Bellman-Ford 与 SPFA</a>、<a href="floyd.html">Floyd 多源最短路</a>。</p>
+</div>
+
+</main>
+
+<script src="../assets/nav.js" data-base="../"></script>
+<script src="../assets/viz.js"></script>
+<script>
+(function () {
+  var svgEl = document.getElementById("gsvg");
+  var tblEl = document.getElementById("distTbl");
+  var doneEl = document.getElementById("doneSet");
+  var runner = null;
+  var steps = [];
+  var graph = [];
+
+  var INF = 1e15;
+  var NAMES = ["A", "B", "C", "D", "E", "F", "G"];
+  var POS = {
+    A: [58, 162], B: [152, 56], C: [152, 266], D: [268, 132],
+    E: [276, 254], F: [378, 56], G: [398, 200]
+  };
+  var SKEL = [
+    ["A", "B"], ["A", "C"], ["B", "C"], ["B", "D"], ["C", "D"],
+    ["C", "E"], ["D", "E"], ["D", "F"], ["E", "G"], ["F", "G"]
+  ];
+  var W = 458, H = 330, R = 19;
+  var COL = {
+    "default": "var(--viz-default)",
+    "comparing": "var(--viz-comparing)",
+    "swapping": "var(--viz-swapping)",
+    "active": "var(--viz-active)",
+    "done": "var(--viz-done)",
+    "eliminated": "var(--viz-eliminated)"
+  };
+
+  function fmt(d) { return d >= INF ? "∞" : String(d); }
+  function copyArr(o) { var r = {}, k; for (k = 0; k < NAMES.length; k++) r[NAMES[k]] = o[NAMES[k]]; return r; }
+  function opOf(a, b) { return a < b ? " &lt; " : (a === b ? " = " : " &gt; "); }
+
+  function genGraph() {
+    var g = [], i;
+    for (i = 0; i < SKEL.length; i++) {
+      g.push({ a: SKEL[i][0], b: SKEL[i][1], w: SV.randInt(1, 9) });
+    }
+    return g;
+  }
+
+  function neighbors(id) {
+    var r = [], k;
+    for (k = 0; k < graph.length; k++) {
+      var e = graph[k];
+      if (e.a === id) r.push({ to: e.b, w: e.w, ei: k });
+      else if (e.b === id) r.push({ to: e.a, w: e.w, ei: k });
+    }
+    return r;
+  }
+
+  function buildSteps(g, s, t) {
+    graph = g;
+    var out = [];
+    var dist = {}, prev = {}, nst = {}, est = [], doneList = [];
+    var i, k;
+    for (i = 0; i < NAMES.length; i++) {
+      dist[NAMES[i]] = INF; prev[NAMES[i]] = null; nst[NAMES[i]] = "default";
+    }
+    for (i = 0; i < g.length; i++) est.push("default");
+    dist[s] = 0;
+    nst[s] = "active";
+
+    function snap(msg) {
+      var sn = {}, se = [], a;
+      for (a = 0; a < NAMES.length; a++) sn[NAMES[a]] = nst[NAMES[a]];
+      for (a = 0; a < g.length; a++) se.push(est[a]);
+      out.push({
+        nst: sn, est: se, dist: copyArr(dist), prev: copyArr(prev),
+        done: doneList.slice(), src: s, dst: t, g: g, msg: msg
+      });
+    }
+    function clearEdges() { var q; for (q = 0; q < g.length; q++) est[q] = "default"; }
+
+    var ws = [], m;
+    for (m = 0; m < g.length; m++) ws.push(g[m].w);
+    snap("带权无向图：" + NAMES.length + " 个结点、" + g.length + " 条边，边权（按图中标注）" + ws.join("、") +
+      "。源点 = " + s + "：d[" + s + "]=0（蓝），其余结点 d 均为 ∞。规则：每轮在未定稿结点中取 d 最小者定稿，再松弛它的所有边。");
+
+    var rounds = 0;
+    while (doneList.length < NAMES.length) {
+      var u = null, best = INF + 1;
+      for (i = 0; i < NAMES.length; i++) {
+        var id = NAMES[i];
+        if (doneList.indexOf(id) >= 0) continue;
+        if (dist[id] < best) { best = dist[id]; u = id; }
+      }
+      if (u === null || dist[u] >= INF) {
+        var rest = [];
+        for (i = 0; i < NAMES.length; i++) {
+          var r2 = NAMES[i];
+          if (doneList.indexOf(r2) < 0) { nst[r2] = "eliminated"; rest.push(r2); }
+        }
+        snap("未定稿集合 {" + rest.join(", ") + "} 中 d 的最小值仍为 ∞——它们从源点 " + s +
+          " 不可达（标灰），算法提前结束。已定稿 " + doneList.length + " 个结点。");
+        break;
+      }
+      var candList = [];
+      for (i = 0; i < NAMES.length; i++) {
+        var c2 = NAMES[i];
+        if (doneList.indexOf(c2) < 0 && dist[c2] < INF) candList.push(c2 + "=" + fmt(dist[c2]));
+      }
+      clearEdges();
+      nst[u] = "active";
+      rounds++;
+      snap("第 " + rounds + " 轮：在未定稿 {" + candList.join(", ") + "} 中取最小 d[" + u + "]=" + fmt(dist[u]) +
+        "，<b>" + u + " 定稿</b>（边权非负，不可能有更短的绕行）。下面逐条松弛 " + u + " 的边。");
+      doneList.push(u);
+
+      var nb = neighbors(u);
+      for (i = 0; i < nb.length; i++) {
+        var e = nb[i], v = e.to;
+        var settled = doneList.indexOf(v) >= 0;
+        var cand = dist[u] + e.w;
+        var old = dist[v];
+        clearEdges();
+        est[e.ei] = "comparing";
+        if (!settled) nst[v] = "comparing";
+        if (!settled && cand < old) {
+          dist[v] = cand;
+          prev[v] = u;
+          nst[v] = "swapping";
+          snap("松弛 " + u + "→" + v + "（边 " + u + "—" + v + " 权 " + e.w + "）：d[" + u + "]+" + e.w + " = " +
+            fmt(dist[u]) + "+" + e.w + " = <b>" + cand + "</b>" + opOf(cand, old) + "d[" + v + "]=" + fmt(old) +
+            " → <b>d[" + v + "]=" + cand + "，prev[" + v + "]=" + u + "</b>（红＝距离刚被更新）。");
+          nst[v] = "default";
+        } else if (settled) {
+          snap("边 " + u + "—" + v + " 权 " + e.w + "：邻居 " + v + " <b>已定稿</b>，Dijkstra 不再改动定稿结点，跳过（即使 d[" + u + "]+" +
+            e.w + " = " + cand + opOf(cand, old) + "d[" + v + "]=" + fmt(old) + "）。");
+        } else {
+          snap("边 " + u + "—" + v + " 权 " + e.w + "：d[" + u + "]+" + e.w + " = " + cand + opOf(cand, old) +
+            "d[" + v + "]=" + fmt(old) + "，<b>不更新</b>（绕道 " + u + " 不比现状更短）。");
+        }
+        clearEdges();
+      }
+      nst[u] = "done";
+      snap(u + " 的 " + nb.length + " 条边检查完毕，" + u + " 标绿。已确定集合 S = {" + doneList.join(", ") +
+        "}（|S| = " + doneList.length + "），d 值依次为 " + (function () { var a = [], q; for (q = 0; q < doneList.length; q++) a.push(doneList[q] + ":" + fmt(dist[doneList[q]])); return a.join(", "); })() + "。");
+    }
+
+    // 回溯 s → t
+    if (dist[t] >= INF) {
+      for (i = 0; i < NAMES.length; i++) if (doneList.indexOf(NAMES[i]) < 0) nst[NAMES[i]] = "eliminated";
+      clearEdges();
+      snap("终点 " + t + " 的 d 仍为 ∞ ❌：从源点 " + s + " 无法到达它（该分量与源点不连通）。已定稿结点的 d 值：S = {" +
+        doneList.join(", ") + "}。");
+    } else {
+      var path = [], cur = t, guard = 0;
+      while (cur !== null && guard <= NAMES.length) {
+        path.push(cur);
+        if (cur === s) break;
+        cur = prev[cur];
+        guard++;
+      }
+      clearEdges();
+      if (path.length === 0 || path[path.length - 1] !== s) {
+        snap("沿 prev[] 回溯未能到达源点 " + s + "（d[" + t + "]=" + fmt(dist[t]) + "，理论不应发生）。");
+      } else {
+        path.reverse();
+        for (i = 0; i < NAMES.length; i++) nst[NAMES[i]] = "default";
+        for (i = 0; i < doneList.length; i++) nst[doneList[i]] = "done";
+        for (i = 0; i < path.length; i++) nst[path[i]] = "done";
+        for (i = 0; i + 1 < path.length; i++) {
+          for (k = 0; k < g.length; k++) {
+            var ee = g[k];
+            if ((ee.a === path[i] && ee.b === path[i + 1]) || (ee.b === path[i] && ee.a === path[i + 1])) est[k] = "done";
+          }
+        }
+        var segs = [];
+        for (i = 0; i + 1 < path.length; i++) {
+          var wv = null;
+          for (k = 0; k < g.length; k++) {
+            var e2 = g[k];
+            if ((e2.a === path[i] && e2.b === path[i + 1]) || (e2.b === path[i] && e2.a === path[i + 1])) wv = e2.w;
+          }
+          segs.push(path[i] + "→" + path[i + 1] + "(权 " + wv + ")");
+        }
+        snap("完成 ✅ 源 <b>" + s + "</b> 到 <b>" + t + "</b> 最短距离 = <b>" + dist[t] + "</b>，路径 " +
+          path.join(" → ") + "（绿色加粗边）" + (path.length > 1 ? "，逐段 " + segs.join(" + ") + " = " + dist[t] : "（源点即终点，路径长度为 0）") +
+          "。全部 " + doneList.length + " 个可达结点均已定稿，d 值：S = {" + (function () { var a = [], q; for (q = 0; q < doneList.length; q++) a.push(doneList[q] + "=" + fmt(dist[doneList[q]])); return a.join(", "); })() + "}。");
+      }
+    }
+    return out;
+  }
+
+  function drawGraph(s) {
+    var html = '<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + " " + H + '">';
+    var i;
+    for (i = 0; i < s.g.length; i++) {
+      var e = s.g[i], st = s.est[i] || "default";
+      var p1 = POS[e.a], p2 = POS[e.b];
+      var sw = st === "done" ? 4 : (st === "default" ? 1.8 : 3.4);
+      var sc = st === "default" ? "#9fa8da" : COL[st];
+      html += '<line x1="' + p1[0] + '" y1="' + p1[1] + '" x2="' + p2[0] + '" y2="' + p2[1] +
+        '" style="stroke:' + sc + ';stroke-width:' + sw + '"/>';
+    }
+    for (i = 0; i < s.g.length; i++) {
+      var e3 = s.g[i], st3 = s.est[i] || "default";
+      var a = POS[e3.a], b = POS[e3.b];
+      var mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
+      var bw = String(e3.w).length > 1 ? 26 : 18;
+      var ltc = st3 === "default" ? "#5f5f5f" : (st3 === "comparing" || st3 === "swapping" ? "#222" : "#43a047");
+      html += '<rect x="' + (mx - bw / 2) + '" y="' + (my - 9) + '" width="' + bw +
+        '" height="17" rx="3" style="fill:#fff;stroke:' + (st3 === "default" ? "#d0d0d0" : COL[st3]) + ';stroke-width:1"/>';
+      html += '<text x="' + mx + '" y="' + (my + 4) + '" text-anchor="middle" font-size="11.5" font-weight="700" style="fill:' +
+        ltc + '">' + e3.w + "</text>";
+    }
+    for (i = 0; i < NAMES.length; i++) {
+      var id = NAMES[i], stn = s.nst[id] || "default";
+      var p = POS[id];
+      var tc = (stn === "default" || stn === "eliminated" || stn === "comparing") ? "#222" : "#fff";
+      html += '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="' + R + '" style="fill:' + COL[stn] +
+        ';stroke:rgba(0,0,0,.3);stroke-width:' + (stn === "done" ? 3 : 1) + '"/>';
+      html += '<text x="' + p[0] + '" y="' + (p[1] + 5) + '" text-anchor="middle" font-size="13.5" font-weight="700" style="fill:' + tc + '">' + id + "</text>";
+      html += '<text x="' + p[0] + '" y="' + (p[1] + R + 13) + '" text-anchor="middle" font-size="11" style="fill:#5f5f5f">d=' +
+        fmt(s.dist[id]) + "</text>";
+    }
+    html += "</svg>";
+    svgEl.innerHTML = html;
+  }
+
+  function drawTable(s) {
+    var h = "<thead><tr><th>结点</th><th>当前 d</th><th>prev</th><th>状态</th></tr></thead><tbody>";
+    for (var i = 0; i < NAMES.length; i++) {
+      var id = NAMES[i];
+      var st = s.nst[id] || "default";
+      var state = s.done.indexOf(id) >= 0 ? "已定稿"
+        : (st === "eliminated" ? "不可达" : (st === "active" ? "本轮定稿中" : (st === "comparing" || st === "swapping" ? "临时标号" : "未定")));
+      h += "<tr><td class=\"c-" + st + '"><b>' + id + "</b></td><td class=\"c-" + st + '">' + fmt(s.dist[id]) +
+        "</td><td>" + (s.prev[id] === null ? "—" : s.prev[id]) + "</td><td>" + state + "</td></tr>";
+    }
+    h += "</tbody>";
+    tblEl.innerHTML = h;
+    var tags = "";
+    for (i = 0; i < s.done.length; i++) tags += '<span class="tag done">' + s.done[i] + " : " + fmt(s.dist[s.done[i]]) + "</span>";
+    if (!s.done.length) tags = '<span style="font-size:12px;color:#999">（集合为空，尚无结点定稿）</span>';
+    doneEl.innerHTML = tags;
+  }
+
+  function draw(step) {
+    var s = step || steps[0];
+    if (!s) return;
+    drawGraph(s);
+    drawTable(s);
+  }
+
+  var srcSel = document.getElementById("srcSel");
+  var dstSel = document.getElementById("dstSel");
+
+  function fillSelects() {
+    var h = "", i;
+    for (i = 0; i < NAMES.length; i++) h += '<option value="' + NAMES[i] + '">' + NAMES[i] + "</option>";
+    srcSel.innerHTML = h;
+    dstSel.innerHTML = h;
+    srcSel.value = "A";
+    dstSel.value = "G";
+  }
+
+  function readSel() {
+    var sv = srcSel.value, dv = dstSel.value;
+    if (NAMES.indexOf(sv) < 0) sv = "A";
+    if (NAMES.indexOf(dv) < 0) dv = "G";
+    return [sv, dv];
+  }
+
+  function restart() {
+    var sel = readSel();
+    steps = buildSteps(genGraph(), sel[0], sel[1]);
+    if (!runner) {
+      runner = SV.runner({
+        host: document.getElementById("runner"),
+        msgEl: document.getElementById("msg"),
+        steps: steps,
+        render: draw
+      });
+    } else {
+      runner.setSteps(steps);
+      draw(null);
+    }
+  }
+
+  fillSelects();
+  srcSel.addEventListener("change", restart);
+  dstSel.addEventListener("change", restart);
+  document.getElementById("btnRand").addEventListener("click", restart);
+  restart();
+})();
+</script>
+</body>
+</html>

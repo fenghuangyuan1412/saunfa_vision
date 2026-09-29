@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>0/1 背包 - Saunfa Vision</title>
+<link rel="stylesheet" href="../assets/style.css">
+<style>
+.kt { border-collapse: separate; border-spacing: 3px; margin: 0 auto; }
+.kt th {
+  font-size: 11.5px; font-weight: 700; color: var(--md-text-light);
+  padding: 2px 3px; text-align: center; line-height: 1.25; background: none; border: none;
+}
+.kt th.itm { text-align: right; padding-right: 6px; white-space: nowrap; }
+.kt th.itm .wv { color: var(--md-primary); font-weight: 700; }
+.kt td { padding: 0; }
+.kc {
+  width: 44px; height: 44px; border: 1px solid rgba(0,0,0,.18); border-radius: 3px;
+  background: var(--viz-default); display: flex; flex-direction: column;
+  align-items: center; justify-content: center; position: relative;
+  font-size: 14px; font-weight: 700; transition: background .12s;
+}
+.kc .kj { position: absolute; top: 1px; left: 2px; font-size: 8.5px; color: rgba(0,0,0,.4); }
+.kc .kp { position: absolute; top: 0; right: 2px; font-size: 9px; font-weight: 700; color: #6d4c00; }
+.kc.empty { background: #fff; border-style: dashed; color: rgba(0,0,0,.2); }
+.kc.inrow { background: rgba(64,81,181,.18); }
+.kc.active { background: var(--viz-active); }
+.kc.active .kj, .kc.active .kp { color: rgba(255,255,255,.85); }
+.kc.comparing { background: var(--viz-comparing); }
+.kc.done { background: var(--viz-done); }
+.kc.done .kj, .kc.done .kp { color: #e8f5e9; }
+.roll-wrap { display: flex; align-items: flex-start; gap: 10px; flex-wrap: wrap; margin-top: 26px; }
+.roll-wrap .row-label { font-size: 12.5px; font-weight: 700; color: var(--md-text-light); padding-top: 40px; white-space: nowrap; min-width: 96px; }
+.roll-wrap .cell-stage { padding: 24px 6px 26px; }
+.roll-wrap .cell { width: 40px; height: 40px; font-size: 13px; flex: none; }
+.roll-wrap .cell.empty { background: #fff; border-style: dashed; color: rgba(0,0,0,.2); }
+.roll-wrap .cell.eliminated { background: var(--viz-eliminated); color: rgba(0,0,0,.4); }
+.roll-wrap .cell.comparing { background: var(--viz-comparing); }
+.roll-wrap .cell.active { background: var(--viz-active); color: #fff; }
+.roll-wrap .cell.done { background: var(--viz-done); color: #fff; }
+.kinfo { margin-top: 8px; font-size: 13px; color: var(--md-text-light); background: rgba(64,81,181,.06); border-radius: 4px; padding: 6px 10px; }
+.kinfo b { color: var(--md-primary); }
+.kitems { font-size: 13.5px; }
+</style>
+</head>
+<body data-page="dp/knapsack-01">
+<main class="sv-content">
+
+<h1>0/1 背包</h1>
+
+<p><strong>0/1 背包</strong>（Knapsack）：给定容量 <code>W</code> 和 <code>n</code> 件物品，第 <code>i</code> 件重量 <code>w[i]</code>、价值 <code>v[i]</code>，每件<strong>最多选一次</strong>（选 0 件或 1 件，故称 0/1），求总重量不超过 <code>W</code> 的前提下能获得的最大总价值。它是 DP 的里程碑问题：一维转移数组的<strong>枚举方向</strong>直接决定答案对错。</p>
+
+<h2>算法原理</h2>
+
+<div class="admonition example">
+<div class="admonition-title">六要素速览</div>
+<ul>
+  <li><strong>状态定义</strong>：<code>dp[i][j]</code> = 只考虑<strong>前 i 件</strong>物品、背包容量为 <code>j</code> 时的最大总价值。</li>
+  <li><strong>转移方程</strong>：<code>dp[i][j] = max(dp[i-1][j], dp[i-1][j - w[i]] + v[i])</code>，第二项仅在 <code>j &ge; w[i]</code> 时存在。</li>
+  <li><strong>边界条件</strong>：<code>dp[0][j] = 0</code>（一件物品都没有，价值恒为 0）。</li>
+  <li><strong>填表顺序</strong>：<code>i</code> 从 1 到 n，每行内 <code>j</code> 从 0 到 W（第 <code>i</code> 行只依赖第 <code>i-1</code> 行）。</li>
+  <li><strong>答案位置</strong>：右下角 <code>dp[n][W]</code>。</li>
+  <li><strong>方案回溯</strong>：从 <code>(n, W)</code> 反向走，<code>dp[i][rem] &gt; dp[i-1][rem]</code> 说明第 <code>i</code> 件被选中，剩余容量减去 <code>w[i]</code>。</li>
+</ul>
+</div>
+
+<p>转移的两支对应两种互斥决策：<strong>不选</strong>第 <code>i</code> 件，最优值与「前 <code>i-1</code> 件、容量 <code>j</code>」相同（正上方格子）；<strong>选</strong>第 <code>i</code> 件，则要先腾出 <code>w[i]</code> 的容量，最优值是「前 <code>i-1</code> 件、容量 <code>j - w[i]</code>」加上 <code>v[i]</code>（左上方格子）。两个来源都来自第 <code>i-1</code> 行，这正是「每件只能选一次」的体现。</p>
+
+<pre><code>procedure Knapsack01(w[1..n], v[1..n], W):
+    for j = 0 to W: dp[0][j] = 0            // 边界：没有物品
+    for i = 1 to n:                         // 逐行填表
+        for j = 0 to W:
+            dp[i][j] = dp[i-1][j]           // 决策一：不选第 i 件
+            if j &gt;= w[i]:                   // 装不下就没有「选」这一支
+                dp[i][j] = max(dp[i][j], dp[i-1][j - w[i]] + v[i])
+    return dp[n][W]
+
+procedure Recover(dp, w, n, W):             // 方案回溯
+    rem = W; items = []
+    for i = n downTo 1:
+        if dp[i][rem] &gt; dp[i-1][rem]:       // 变大 =&gt; 第 i 件一定被选中
+            items.append(i); rem = rem - w[i]
+    return items</code></pre>
+
+<h3>空间压缩：为什么必须逆序枚举 j</h3>
+
+<p>第 <code>i</code> 行只依赖第 <code>i-1</code> 行，因此可以把二维表压成一维数组 <code>f[0..W]</code>，<strong>原地</strong>滚动：</p>
+
+<pre><code>for j = 0 to W: f[j] = 0
+for i = 1 to n:
+    for j = W downTo w[i]:        // 关键：逆序！
+        f[j] = max(f[j], f[j - w[i]] + v[i])
+answer = f[W]</code></pre>
+
+<div class="admonition note">
+<div class="admonition-title">逆序的因果</div>
+<p>写成 <code>max(f[j], f[j - w[i]] + v[i])</code> 后，<code>f[j - w[i]]</code> 必须是<strong>「还没考虑第 i 件物品」时</strong>的值（等价于二维的 <code>dp[i-1][j - w[i]]</code>）。</p>
+<ul>
+  <li><strong>逆序（j 从 W 递减到 w[i]）</strong>：更新 <code>f[j]</code> 时，比它小的下标 <code>j - w[i]</code> 这一轮<strong>还没被访问</strong>，仍是上一轮（前 <code>i-1</code> 件）的旧值 —— 语义正确。</li>
+  <li><strong>正序（j 从 w[i] 递增到 W）</strong>：<code>f[j - w[i]]</code> 本轮已经更新过，里面可能<strong>已经含第 i 件</strong>，再加一次 <code>v[i]</code> 就等于把同一件物品选了两遍 —— 这恰好是<strong>完全背包</strong>（每件可选无限次）的正确写法。</li>
+</ul>
+<p>一句话记忆：<strong>0/1 背包逆序，完全背包正序</strong>。本页演示的下方小面板会把两种顺序的差异都跑一遍。</p>
+</div>
+
+<h2>可视化演示</h2>
+
+<div class="viz-panel">
+  <div class="viz-stage">
+    <div style="overflow-x:auto"><table class="kt" id="ktbl"></table></div>
+    <div class="roll-wrap">
+      <span class="row-label">一维滚动数组<br>f[0..W]</span>
+      <div class="cell-stage" id="rollRow"></div>
+    </div>
+    <div class="kinfo" id="kinfo"></div>
+  </div>
+  <div class="viz-msg" id="msg"></div>
+  <div class="viz-legend">
+    <span class="chip"><span class="sw" style="background:#fff;border-style:dashed"></span>dp 尚未填写</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-comparing)"></span>正在计算的格</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-active)"></span>转移来源（正上方 / 左上 + v）</span>
+    <span class="chip"><span class="sw" style="background:rgba(64,81,181,.18)"></span>当前正在填的行（淡蓝）</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-default)"></span>已填好的格</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-eliminated)"></span>容量不足（正序错误演示中被污染的格）</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-done)"></span>边界行 / 最优方案走过的格</span>
+  </div>
+  <div id="runner"></div>
+  <div class="viz-controls">
+    <button id="btnRandom" class="viz-btn">🎲 随机新物品集</button>
+    <span style="font-size:12.5px;color:var(--md-text-light)">物品数 n = 5、容量 W = 9 固定；格内右上角小字「选」表示该格由「选第 i 件」转移而来。</span>
+  </div>
+</div>
+
+<h2>复杂度分析</h2>
+
+<table>
+  <thead><tr><th>指标</th><th>量级</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td>最优时间复杂度</td><td><code>O(nW)</code></td><td>状态数 n × (W+1)，每个状态转移 O(1)</td></tr>
+    <tr><td>平均时间复杂度</td><td><code>O(nW)</code></td><td>与物品重量、价值分布无关（只与 W 有关）</td></tr>
+    <tr><td>最坏时间复杂度</td><td><code>O(nW)</code></td><td>同上；<strong>伪多项式</strong>——W 以二进制给出时是指数级</td></tr>
+    <tr><td>空间复杂度</td><td><code>O(W)</code></td><td>一维滚动数组；保留二维表 <code>O(nW)</code> 才能直接回溯方案</td></tr>
+    <tr><td>方案回溯</td><td><code>O(n)</code></td><td>需完整 dp 表；一维版本要另存每轮选择</td></tr>
+  </tbody>
+</table>
+
+<h2>应用与局限</h2>
+
+<ul>
+  <li><strong>伪多项式时间</strong>：<code>O(nW)</code> 里的 <code>W</code> 是<em>数值</em>而非输入长度。若 <code>W = 10⁹</code>，DP 直接不可行，只能转向搜索、 meet-in-the-middle（折半枚举 <code>O(2^(n/2))</code>，适合 n ≤ 40）或贪心近似（分数背包按性价比排序即最优）。判断该用哪种做法，第一件事就是看 <code>n</code> 与 <code>W</code> 谁小。</li>
+  <li><strong>恰好装满</strong>：把「容量不超过」改成「恰好装满」，只需改初始化：一维版本 <code>f[0] = 0</code>、其余 <code>f[j] = -∞</code>（二维版本 <code>dp[0][0] = 0</code>、<code>dp[0][j] = -∞</code>）。这样不可达状态不会被当成价值 0 参与 max，最后 <code>f[W]</code> 仍为 <code>-∞</code> 就表示无解。求最小价值的「恰好装满」则把 <code>-∞</code> 换成 <code>+∞</code> 并把 max 换成 min。</li>
+  <li><strong>方案计数</strong>：<code>dp[i][j] += dp[i-1][j] + dp[i-1][j-w[i]]</code>（不选与选的数目相加），同样逆序；完全背包计数则正序。注意取模。</li>
+  <li><strong>最少物品数</strong>：把 max 换成 min、权值换成 1，即「凑出金额所需的最少硬币数」的 0/1 版本（无限个则是完全背包）。</li>
+  <li><strong>二维费用背包 / 分组背包</strong>：状态再加一维容量，或在「组」外面再套一层枚举，转移结构不变。</li>
+</ul>
+
+<p>局限：DP 只能给出「最大值」，若问题还要求「方案数最多中的字典序最小」之类附加目标，就需要在状态里多带信息或二次 DP；同时 <code>O(nW)</code> 的常数虽然小，仍受 <code>W</code> 数值上界的硬约束。</p>
+
+<div class="admonition info">
+<div class="admonition-title">参考</div>
+<p>背包专题（0/1 背包、完全背包、多重背包、变形）：<a href="https://oi-wiki.org/dp/knapsack/" target="_blank" rel="noopener">OI Wiki 背包问题</a>。原题：洛谷 P1048「采药」、POJ 3624「Knapsack Worker」。</p>
+</div>
+
+</main>
+
+<script src="../assets/nav.js" data-base="../"></script>
+<script src="../assets/viz.js"></script>
+<script>
+(function () {
+  "use strict";
+  var N = 5;      // 物品数固定
+  var W = 9;      // 容量固定
+  var tbl = document.getElementById("ktbl");
+  var rollEl = document.getElementById("rollRow");
+  var infoEl = document.getElementById("kinfo");
+  var steps = [];
+  var runner = null;
+
+  function makeItems(n) {
+    var w = [0], v = [0];
+    for (var i = 1; i <= n; i++) { w.push(SV.randInt(1, 8)); v.push(SV.randInt(1, 12)); }
+    return { w: w, v: v };
+  }
+
+  function copyM(m) {
+    var r = [];
+    for (var i = 0; i < m.length; i++) r.push(m[i].slice());
+    return r;
+  }
+  function hasCell(list, i, j) {
+    for (var k = 0; k < list.length; k++) if (list[k][0] === i && list[k][1] === j) return true;
+    return false;
+  }
+
+  // 快照：{w, v, dp(2D,null 未填), take(2D,bool), row, cur:[i,j], srcs:[[i,j]], bnd,
+  //        f(1D|null), fCur, fSrc, fBad, path[[i,j]], taken[itemIdx], answer, msg}
+  function buildSteps(items) {
+    var w = items.w, v = items.v, n = N;
+    var out = [];
+    var dp = [], take = [], i, j;
+    for (i = 0; i <= n; i++) {
+      var r1 = [], r2 = [];
+      for (j = 0; j <= W; j++) { r1.push(null); r2.push(false); }
+      dp.push(r1); take.push(r2);
+    }
+    var row = null, cur = null, srcs = [], bnd = false;
+    var f = null, fCur = null, fSrc = null, fBad = [], fPhase = null, fItem = null;
+    var path = [], taken = [], answer = null;
+
+    function snap(extra) {
+      var s = {
+        w: w.slice(), v: v.slice(), dp: copyM(dp), take: copyM(take),
+        row: row, cur: cur, srcs: srcs.slice(), bnd: bnd,
+        f: f ? f.slice() : null, fCur: fCur, fSrc: fSrc, fBad: fBad.slice(), fPhase: fPhase, fItem: fItem,
+        path: path.slice(), taken: taken.slice(), answer: answer, msg: ""
+      };
+      for (var k in extra) if (Object.prototype.hasOwnProperty.call(extra, k)) s[k] = extra[k];
+      out.push(s);
+    }
+    function desc(iv) { return "i = " + iv + "（w = " + w[iv] + ", v = " + v[iv] + "）"; }
+
+    var listTxt = [];
+    for (i = 1; i <= n; i++) listTxt.push("第 " + i + " 件 w = " + w[i] + ", v = " + v[i]);
+    snap({ msg: "容量 W = " + W + "，" + n + " 件物品：" + listTxt.join("；") + "。状态定义：dp[i][j] = 只考虑<strong>前 i 件</strong>物品、容量为 <strong>j</strong> 时的最大价值。转移：dp[i][j] = max(不选 dp[i-1][j]，选 dp[i-1][j-w[i]] + v[i])。点击「播放」或「下一步」开始。" });
+
+    for (j = 0; j <= W; j++) dp[0][j] = 0;
+    bnd = true;
+    snap({ bnd: true, srcs: [], row: 0,
+      msg: "边界条件：一件物品都不选时，任何容量下的最大价值都是 0，即 dp[0][j] = 0（j = 0 .. " + W + "）。第一行是整张表的地基。" });
+
+    for (i = 1; i <= n; i++) {
+      row = i;
+      for (j = 0; j <= W; j++) {
+        cur = [i, j];
+        srcs = [[i - 1, j]];
+        if (j < w[i]) {
+          dp[i][j] = dp[i - 1][j];
+          take[i][j] = false;
+          snap({ msg: desc(i) + "，j = " + j + "：容量不足（j = " + j + " &lt; w = " + w[i] + "），第 " + i + " 件<strong>装不下</strong>，只能不选：dp[" + i + "][" + j + "] = dp[" + (i - 1) + "][" + j + "] = <b>" + dp[i][j] + "</b>。" });
+        } else {
+          var skip = dp[i - 1][j];
+          var srcDiag = dp[i - 1][j - w[i]];
+          var put = srcDiag + v[i];
+          srcs = [[i - 1, j], [i - 1, j - w[i]]];
+          dp[i][j] = Math.max(skip, put);
+          take[i][j] = put > skip;
+          snap({ msg: desc(i) + "，j = " + j + "：不选 = dp[" + (i - 1) + "][" + j + "] = " + skip + "；选 = dp[" + (i - 1) + "][" + (j - w[i]) + "] + v = " + srcDiag + " + " + v[i] + " = " + put +
+            " → 取 <b>" + (take[i][j] ? put + "（选第 " + i + " 件）" : skip + "（不选" + (put === skip ? "，两者相等时按不选处理" : "") + "）") + "</b>。" });
+        }
+      }
+      cur = null; srcs = [];
+      snap({ msg: "第 " + i + " 行填完：dp[" + i + "][0.." + W + "] = " + dp[i].join(" ") + "。" + (i < n ? "下一行 i = " + (i + 1) + " 只依赖这一行。" : "整张表填完。") });
+    }
+
+    row = null; cur = null; srcs = [];
+    answer = dp[n][W];
+    snap({ row: null, answer: answer,
+      msg: "二维填表结束。<b>答案位置</b>：右下角 dp[" + n + "][" + W + "] = <b>" + answer + "</b>。接下来演示把表压成一维 <code>f[]</code> 时<strong>为什么必须逆序</strong>枚举 j。" });
+
+    // 一维滚动数组：以第 3 件物品为例，从 dp[2][*] 出发逆序更新
+    f = dp[2].slice();
+    fCur = null; fSrc = null; fBad = []; fPhase = "init";
+    snap({ f: f.slice(), fPhase: "init", answer: answer,
+      msg: "一维数组 <code>f[j]</code> 表示「已处理过的前若干件物品、容量 j」的最大价值。处理" + desc(3) + "之前，f[0.." + W + "] = " + f.join(" ") + "（正是二维表的第 2 行，此时 f 与 dp[2][*] 一一对应）。" });
+
+    var wi = w[3], vi = v[3];
+    var oldF = f.slice();
+    var order = [];
+    for (j = W; j >= wi; j--) order.push(j);
+    for (i = 0; i < order.length; i++) {
+      j = order[i];
+      fSrc = j - wi;
+      fCur = j;
+      fPhase = "down";
+      var keepOld = f[j], cand = f[j - wi] + vi;
+      f[j] = Math.max(keepOld, cand);
+      fBad = [];
+      snap({ f: f.slice(), answer: answer,
+        msg: "逆序更新" + desc(3) + "：j = " + j + "（从 " + W + " 递减到 " + wi + "）：f[" + j + "] = max(f[" + j + "] = " + keepOld + ", f[" + (j - wi) + "] + " + vi + " = " + f[j - wi] + " + " + vi + " = " + cand + ") = <b>" + f[j] + "</b>。" +
+          "因为 j 从大到小，<code>f[" + (j - wi) + "]</code> 本轮还没被改写，它仍是「前 2 件物品」的值 = dp[2][" + (j - wi) + "] = " + oldF[j - wi] + "，所以第 3 件只会被选一次。" });
+    }
+    fCur = null; fSrc = null; fPhase = "done";
+    var fOk = sameRow(f, dp[3]);
+    snap({ f: f.slice(), fPhase: "done", answer: answer,
+      msg: "j = 0 .. " + (wi - 1) + " 都小于 w = " + wi + "，装不下第 3 件，保持旧值不变。逆序更新完成：f[0.." + W + "] = " + f.join(" ") + "，与二维表的第 3 行 dp[3][*] = " + dp[3].join(" ") +
+        " <b>" + (fOk ? "完全一致 ✅" : "不一致 ⚠（实现有误）") + "</b>。" });
+
+    // 反例：正序枚举会把同一件物品选两次 —— 找一个真能暴露差异的物品编号
+    var ck = -1, cg = null, cbad = [], cwrong = -1, cUseVal = 0, cWrongVal = 0, cRightVal = 0;
+    for (var k = 1; k <= n && ck < 0; k++) {
+      var g = dp[k - 1].slice();
+      var bad2 = [], first = -1;
+      for (j = w[k]; j <= W; j++) {
+        g[j] = Math.max(g[j], g[j - w[k]] + v[k]);   // 注意：g[j-w[k]] 本轮可能已被改写
+        if (g[j] !== dp[k][j]) { bad2.push(j); if (first < 0) first = j; }
+      }
+      if (bad2.length) { ck = k; cg = g; cbad = bad2; cwrong = first; cUseVal = g[first - w[k]]; cWrongVal = g[first]; cRightVal = dp[k][first]; }
+    }
+    if (ck > 0) {
+      var wiTxt = (ck === 3) ? "" : "（第 3 件在本组数据下看不出差异，改用第 " + ck + " 件演示）";
+      f = cg; fCur = cwrong; fSrc = null; fBad = cbad.slice(); fPhase = "asc-wrong"; fItem = ck;
+      snap({ f: cg.slice(), fCur: cwrong, fBad: cbad.slice(), fPhase: "asc-wrong", fItem: ck, answer: answer,
+        msg: "<strong>反例：改成正序</strong>枚举 j" + wiTxt + " —— 处理第 " + ck + " 件（w = " + w[ck] + ", v = " + v[ck] + "），起点是上一行的 dp[" + (ck - 1) + "][*]。走到 j = " + cwrong +
+          " 时用的是<strong>本轮刚被更新过</strong>的 f[" + (cwrong - w[ck]) + "] = " + cUseVal + "（里面已经含一次第 " + ck + " 件），再加 v = " + v[ck] + " 得到 f[" + cwrong + "] = " + cWrongVal +
+          "，而正确值 dp[" + ck + "][" + cwrong + "] = " + cRightVal + " —— 相当于把第 " + ck + " 件物品<strong>选了两次</strong>。灰色的 " + cbad.length + " 个格子都被污染。结论：<strong>0/1 背包必须逆序</strong>。" });
+    } else {
+      fPhase = "asc-note";
+      snap({ f: null, fCur: null, fBad: [], fPhase: "asc-note", answer: answer,
+        msg: "<strong>反例说明</strong>：把 " + n + " 件物品逐一按正序枚举试了一遍，本组数据恰好没有暴露差异（每件物品的性价比使「重复选取」不会更优）。但语义上正序读到的 <code>f[j - w[i]]</code> 已被本轮改写，等价于允许同一件物品选两次，<strong>逻辑仍然是错的</strong>。换一组数据立刻可见：只有一件物品 w = 2, v = 3、W = 4 时，正序得到 f[4] = 6（选了两次），正确答案只有 3。" });
+    }
+    f = null; fCur = null; fSrc = null; fBad = []; fPhase = null; fItem = null;
+
+    // 方案回溯
+    var rem = W;
+    path = [[n, rem]];
+    taken = [];
+    snap({ path: path.slice(), answer: answer,
+      msg: "方案回溯：从右下角 (i = " + n + ", 剩余容量 = " + rem + ") 出发，逐行向上比较 dp[i][rem] 与 dp[i-1][rem]。" });
+    for (i = n; i >= 1; i--) {
+      cur = null; srcs = [[i - 1, rem]];
+      if (dp[i][rem] > dp[i - 1][rem]) {
+        taken.push(i);
+        rem = rem - w[i];
+        path.push([i - 1, rem]);
+        snap({ path: path.slice(), taken: taken.slice(), answer: answer, srcs: srcs,
+          msg: "dp[" + i + "][" + (rem + w[i]) + "] = " + dp[i][rem + w[i]] + " &gt; dp[" + (i - 1) + "][" + (rem + w[i]) + "] = " + dp[i - 1][rem + w[i]] +
+            " → 第 " + i + " 件（w = " + w[i] + ", v = " + v[i] + "）<strong>被选中</strong>，剩余容量 " + (rem + w[i]) + " - " + w[i] + " = " + rem + "。" });
+      } else {
+        path.push([i - 1, rem]);
+        snap({ path: path.slice(), taken: taken.slice(), answer: answer, srcs: srcs,
+          msg: "dp[" + i + "][" + rem + "] = dp[" + (i - 1) + "][" + rem + "] = " + dp[i][rem] + " → 第 " + i + " 件<strong>未选</strong>（相等时按不选处理），剩余容量仍为 " + rem + "。" });
+      }
+    }
+    cur = null; srcs = []; row = null;
+    var tw = 0, tv = 0, names = [];
+    for (i = 0; i < taken.length; i++) { tw += w[taken[i]]; tv += v[taken[i]]; names.push(taken[i]); }
+    names.sort(function (x, y) { return x - y; });
+    snap({ path: path.slice(), taken: taken.slice(), answer: answer, row: null, cur: null, srcs: [],
+      msg: "回溯完成 ✅ 最优价值 = dp[" + n + "][" + W + "] = <b>" + answer + "</b>，选物品 <b>" + (names.length ? names.join("、") : "（无，全不选）") + "</b>：总重 " + tw + " ≤ " + W + "，总价值 " + tv + "（与 dp[" + n + "][" + W + "] = " + answer + " 吻合）。" });
+    return out;
+  }
+
+  function sameRow(x, y) {
+    for (var j = 0; j <= W; j++) if (x[j] !== y[j]) return false;
+    return true;
+  }
+
+  function draw(step) {
+    var s = step || steps[0];
+    if (!s) return;
+    var html = "<tr><th>物品 i ＼ 容量 j</th>";
+    for (var j = 0; j <= W; j++) html += "<th>j = " + j + "</th>";
+    html += "</tr>";
+    for (var i = 0; i <= s.dp.length - 1; i++) {
+      html += "<tr>";
+      html += "<th class='itm'>" + (i === 0 ? "边界" : "i = " + i + "<br><span class='wv'>w = " + s.w[i] + ", v = " + s.v[i] + "</span>") + "</th>";
+      for (j = 0; j <= W; j++) {
+        var c = "kc";
+        var val = s.dp[i][j];
+        if (val === null) c += " empty";
+        if (i === 0 && s.bnd) c += " done";
+        else if (hasCell(s.path, i, j)) c += " done";
+        else if (s.cur && i === s.cur[0] && j === s.cur[1]) c += " comparing";
+        else if (hasCell(s.srcs, i, j)) c += " active";
+        else if (s.row === i && val !== null) c += " inrow";
+        html += '<td><div class="' + c + '">' + (val === null ? "" : val) +
+          (val !== null && s.take[i][j] ? '<span class="kp">选</span>' : "") +
+          '<span class="kj">' + i + "," + j + "</span></div></td>";
+      }
+      html += "</tr>";
+    }
+    tbl.innerHTML = html;
+
+    var rh = "";
+    for (j = 0; j <= W; j++) {
+      var rc = "cell";
+      if (!s.f) { rc += " empty"; }
+      else if (s.f[j] === null) rc += " empty";
+      else if (s.fBad && s.fBad.indexOf(j) >= 0) rc += " eliminated";
+      if (s.f && j === s.fCur) rc += " comparing";
+      else if (s.f && j === s.fSrc) rc += " active";
+      rh += '<div class="' + rc + '">' + (s.f && s.f[j] !== null ? s.f[j] : "") +
+        '<span class="idx">' + j + "</span></div>";
+    }
+    rollEl.innerHTML = rh;
+
+    var filled = 0, total = 0;
+    for (i = 0; i <= N; i++) for (j = 0; j <= W; j++) { total++; if (s.dp[i][j] !== null) filled++; }
+    infoEl.innerHTML = "状态：<code>dp[i][j]</code> = 前 i 件物品、容量 j 的最大价值 ｜ 转移：<code>max(dp[i-1][j], dp[i-1][j-w[i]] + v[i])</code> ｜ 边界：<code>dp[0][*] = 0</code> ｜ 已填 <b>" + filled + " / " + total + "</b> 格" +
+      (s.answer === null ? " ｜ 一维面板：<b>未启用</b>（滚动到 i = 3 时演示）" : " ｜ 答案 dp[" + N + "][" + W + "] = <b>" + s.answer + "</b>") +
+      (s.f ? " ｜ 一维面板：<b>正在用" + (s.fPhase === "asc-wrong" ? "正序（错误）" : "逆序（正确）") + "更新第 " + (s.fItem || 3) + " 件物品</b>" : "");
+  }
+
+  function restart() {
+    steps = buildSteps(makeItems(N));
+    if (!runner) {
+      runner = SV.runner({
+        host: document.getElementById("runner"),
+        msgEl: document.getElementById("msg"),
+        steps: steps,
+        render: draw
+      });
+    } else {
+      runner.setSteps(steps);
+      draw(null);
+    }
+  }
+
+  document.getElementById("btnRandom").addEventListener("click", restart);
+  restart();
+})();
+</script>
+</body>
+</html>

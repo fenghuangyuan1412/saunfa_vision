@@ -18,6 +18,19 @@
 <p>进入任意算法页后，在「可视化演示」面板点击 <b>▶ 播放</b> 自动演示，或用 <b>下一步 / 上一步</b> 逐帧研究；速度可调节，页面右侧（或底部）的说明行会给出每一步的具体含义。</p>
 </div>
 
+<h2>基础算法</h2>
+<div class="card-grid">
+  <a class="card" href="basic/complexity.html"><div class="card-title">复杂度分析</div><div class="card-desc">大 O 记号与增长阶对比，看清 2ⁿ 与 n² 的差距有多大。</div></a>
+  <a class="card" href="basic/enumeration.html"><div class="card-title">枚举</div><div class="card-desc">位掩码枚举全部子集，理解「穷举 + 剪枝」的边界。</div></a>
+  <a class="card" href="basic/simulation.html"><div class="card-title">模拟</div><div class="card-desc">约瑟夫环逐步维护状态：报数、出圈、幸存者。</div></a>
+  <a class="card" href="basic/recursion.html"><div class="card-title">递归 &amp; 分治</div><div class="card-desc">汉诺塔 + 递归调用栈可视化，看清 2ⁿ−1 次移动从何而来。</div></a>
+  <a class="card" href="basic/greedy.html"><div class="card-title">贪心</div><div class="card-desc">区间调度贪心，以及贪心为什么会错的反例。</div></a>
+  <a class="card" href="basic/prefix-sum.html"><div class="card-title">前缀和 &amp; 差分</div><div class="card-desc">O(n) 预处理换 O(1) 区间查询，差分是它的逆运算。</div></a>
+  <a class="card" href="basic/binary-search-answer.html"><div class="card-title">二分答案</div><div class="card-desc">在答案空间二分 + 贪心判定，解决「最小化最大值」。</div></a>
+  <a class="card" href="basic/binary-lifting.html"><div class="card-title">倍增</div><div class="card-desc">ST 表逐层填表，O(n log n) 预处理换 O(1) 区间最值。</div></a>
+  <a class="card" href="basic/construction.html"><div class="card-title">构造</div><div class="card-desc">Havel–Hakimi 定理：由度数序列判定并构造简单图。</div></a>
+</div>
+
 <h2>排序算法</h2>
 <div class="card-grid">
   <a class="card" href="sorting/bubble-sort.html"><div class="card-title">冒泡排序</div><div class="card-desc">相邻比较与交换，O(n²) 稳定排序，提前退出优化。</div></a>
@@ -30,6 +43,18 @@
   <a class="card" href="searching/binary-search.html"><div class="card-title">二分查找</div><div class="card-desc">有序数组上 O(log n) 折半定位，含边界收缩与防溢出写法。</div></a>
 </div>
 
+<h2>动态规划</h2>
+<div class="card-grid">
+  <a class="card" href="dp/number-triangle.html"><div class="card-title">数字三角形</div><div class="card-desc">DP 入门：状态定义、转移方程、自底向上填表与路径回溯。</div></a>
+  <a class="card" href="dp/lis.html"><div class="card-title">最长上升子序列</div><div class="card-desc">「以 i 结尾」的状态设计，O(n²) 与 O(n log n) 两种做法。</div></a>
+  <a class="card" href="dp/max-subarray.html"><div class="card-title">最大子段和</div><div class="card-desc">Kadane 算法：要么接上前面，要么从我重新开始。</div></a>
+  <a class="card" href="dp/knapsack-01.html"><div class="card-title">0/1 背包</div><div class="card-desc">二维填表 + 一维滚动数组为何必须逆序枚举容量。</div></a>
+  <a class="card" href="dp/complete-knapsack.html"><div class="card-title">完全背包</div><div class="card-desc">与 0/1 只差一行：转移来自本行，正序枚举即允许重复选。</div></a>
+  <a class="card" href="dp/lcs.html"><div class="card-title">最长公共子序列</div><div class="card-desc">二维网格转移与对角线回溯，子序列与子串的区别。</div></a>
+  <a class="card" href="dp/edit-distance.html"><div class="card-title">编辑距离</div><div class="card-desc">插入 / 删除 / 替换三来源取最小，回溯出具体操作序列。</div></a>
+  <a class="card" href="dp/interval-dp-stone.html"><div class="card-title">区间 DP：石子合并</div><div class="card-desc">按区间长度枚举，分割点取最优；环形与四边形不等式优化。</div></a>
+</div>
+
 <h2>数据结构</h2>
 <div class="card-grid">
   <a class="card" href="data-structure/stack.html"><div class="card-title">栈</div><div class="card-desc">LIFO 结构动手实验：入栈、出栈、括号匹配与递归的关系。</div></a>
@@ -37,10 +62,20 @@
   <a class="card" href="data-structure/bst.html"><div class="card-title">二叉搜索树</div><div class="card-desc">插入与查找路径可视化，三种 DFS 遍历与退化问题。</div></a>
 </div>
 
-<h2>图论基础</h2>
+<h2>图论</h2>
 <div class="card-grid">
   <a class="card" href="graph/bfs.html"><div class="card-title">广度优先搜索</div><div class="card-desc">队列逐层扩展，网格迷宫求无权最短路，队列实时可见。</div></a>
   <a class="card" href="graph/dfs.html"><div class="card-title">深度优先搜索</div><div class="card-desc">一路走到底再回溯，调用栈实时可见，理解与 BFS 的差异。</div></a>
+  <a class="card" href="graph/dijkstra.html"><div class="card-title">Dijkstra 最短路</div><div class="card-desc">贪心定稿 + 松弛，堆优化 O(E log V)，不能处理负权。</div></a>
+  <a class="card" href="graph/spfa.html"><div class="card-title">Bellman-Ford 与 SPFA</div><div class="card-desc">队列优化松弛，支持负权边与负环检测。</div></a>
+  <a class="card" href="graph/floyd.html"><div class="card-title">Floyd 多源最短路</div><div class="card-desc">中转点 k 必须在最外层的 O(n³) 三重循环。</div></a>
+  <a class="card" href="graph/lca.html"><div class="card-title">最近公共祖先 LCA</div><div class="card-desc">倍增表预处理 + 两步上跳查询，O(log n) 一次。</div></a>
+</div>
+
+<h2>字符串</h2>
+<div class="card-grid">
+  <a class="card" href="string/trie.html"><div class="card-title">Trie 字典树</div><div class="card-desc">按字符下行的插入 / 查询 / 前缀计数，节点与边实时生成。</div></a>
+  <a class="card" href="string/kmp.html"><div class="card-title">KMP 模式匹配</div><div class="card-desc">next 数组逐步求解，主串指针永不回退的匹配过程。</div></a>
 </div>
 
 <h2>关于本站</h2>

@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>前缀和 &amp; 差分 - Saunfa Vision</title>
+<link rel="stylesheet" href="../assets/style.css">
+<style>
+.ps-cols { display: flex; gap: 4px; padding: 28px 6px 26px; }
+.ps-col { display: flex; flex-direction: column; gap: 4px; position: relative; align-items: center; }
+.ps-col .cell { width: 44px; height: 40px; font-size: 13.5px; }
+.ps-col .col-idx { position: absolute; bottom: -20px; font-size: 11px; color: rgba(0,0,0,.4); }
+.ps-result { margin-top: 6px; font-size: 13.5px; font-weight: 700; color: rgba(0,0,0,.45); }
+.ps-result.on { color: #fff; background: var(--viz-done); border-radius: 3px; padding: 4px 10px; display: inline-block; }
+.box-label { font-size: 12.5px; color: var(--md-text-light); font-weight: 700; display: block; margin-bottom: 4px; }
+</style>
+</head>
+<body data-page="basic/prefix-sum">
+<main class="sv-content">
+
+<h1>前缀和 &amp; 差分</h1>
+
+<p><strong>前缀和</strong>与<strong>差分</strong>是一对互逆技巧：前者用 <code>O(n)</code> 预处理把「区间和查询」降到 <code>O(1)</code>；后者用两次单点修改把「区间加」降到 <code>O(1)</code>，再靠一次前缀和还原原数组。二者都不需要复杂数据结构，是竞赛与工程中最常用的高效手段。</p>
+
+<h2>算法原理</h2>
+
+<p><strong>前缀和</strong>：约定数组下标从 1 开始，定义 <code>s[i] = a[1] + a[2] + … + a[i]</code>（<code>s[0] = 0</code>）。递推式为 <code>s[i] = s[i-1] + a[i]</code>。于是任意闭区间的和：</p>
+
+<pre><code>sum(l, r) = a[l] + … + a[r] = s[r] − s[l − 1]     // 预处理 O(n)，单次查询 O(1)</code></pre>
+
+<p>之所以能相减，是因为 <code>s[r]</code> 与 <code>s[l-1]</code> 的公共前段 <code>a[1..l-1]</code> 被完整抵消，剩下恰是 <code>a[l..r]</code>。</p>
+
+<p><strong>二维前缀和</strong>（容斥）：设 <code>s[i][j]</code> 为以 <code>(1,1)</code> 为左上角、<code>(i,j)</code> 为右下角的子矩形元素和，则</p>
+
+<pre><code>s[i][j] = a[i][j] + s[i-1][j] + s[i][j-1] − s[i-1][j-1]      // 建表
+sum(矩形 (x1,y1)..(x2,y2))
+      = s[x2][y2] − s[x1-1][y2] − s[x2][y1-1] + s[x1-1][y1-1]  // 查询（容斥）</code></pre>
+
+<p>建表时左上块被加了两次故减去一块；查询时两个外接矩形都含 <code>(x1-1, y1-1)</code> 块，减了两次故加回一次。</p>
+
+<p><strong>差分</strong>：定义 <code>d[i] = a[i] − a[i-1]</code>（<code>d[1] = a[1]</code>），则 <code>a[i] = d[1] + … + d[i]</code>，即差分是前缀和的逆运算。要给 <code>a[l..r]</code> 整体加 <code>v</code>，只需：</p>
+
+<pre><code>diffAdd(l, r, v):
+    d[l] = d[l] + v           // [l, n] 全部抬高 v
+    d[r + 1] = d[r + 1] − v   // 从 r+1 起把多出的 v 收回
+    // 需要新 a 时再做一次前缀和：a[i] = a[i-1] + d[i]</code></pre>
+
+<div class="admonition note">
+<div class="admonition-title">备注：互为逆运算</div>
+<p>把「差分」看作离散版本求导，「前缀和」看作积分：<code>prefix(diff(a)) = a</code>，<code>diff(prefix(a)) = a</code>。因此「多次区间修改 + 最后统一查询」的标准套路是：全部修改打在差分数组上（每次 <code>O(1)</code>），最后一次前缀和还原（<code>O(n)</code>），总代价 <code>O(n + m)</code> 而不是 <code>O(n·m)</code>。</p>
+</div>
+
+<h2>可视化演示</h2>
+
+<p>演示分三个阶段，画布是三行同列对齐的单元格（上排 = <code>a</code>，中排 = <code>s</code>，下排 = <code>d</code>，「·」表示该列该行的值尚未产生）。阶段 A 逐格建前缀和表（橙 = 正在计算，蓝 = 已写入）；阶段 B 高亮查询用到的两个格并给出 <code>O(1)</code> 结果；阶段 C 在差分数组上做一次区间加（红 = 被修改的两个端点），再逐格求前缀和还原数组（橙 = 累加中，绿 = 已还原）。也可以在下方输入区间自行查询 / 区间加。</p>
+
+<div class="viz-panel">
+  <div class="viz-stage">
+    <span class="box-label">上排 a[i]（第一行为指针标注 l / l−1 / r）　中排 s[i]　下排 d[i]　列底为下标 i（0~10）</span>
+    <div class="ps-cols" id="cols"></div>
+    <div class="ps-result" id="result"></div>
+  </div>
+  <div class="viz-msg" id="msg"></div>
+  <div class="viz-legend">
+    <span class="chip"><span class="sw" style="background:var(--viz-default)"></span>未参与</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-comparing)"></span>正在计算 / 取值</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-active)"></span>已写入 / 命中的区间元素</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-swapping)"></span>被修改的差分端点</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-done)"></span>还原完成 / 查询结果</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-eliminated)"></span>无值</span>
+  </div>
+  <div id="runner"></div>
+  <div class="viz-controls">
+    <label>l <input type="number" id="lInp" min="1" max="10" step="1" value="2"></label>
+    <label>r <input type="number" id="rInp" min="1" max="10" step="1" value="9"></label>
+    <button id="btnQuery" class="viz-btn primary">🔍 求区间和</button>
+    <label>v <input type="number" id="vInp" step="1" value="4"></label>
+    <button id="btnAdd" class="viz-btn">➕ 区间加 l r v</button>
+    <button id="btnRandom" class="viz-btn">🎲 随机新数组</button>
+  </div>
+</div>
+
+<h2>复杂度分析</h2>
+
+<table>
+  <thead><tr><th>指标</th><th>量级</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td>最优时间复杂度</td><td><code>O(n + m)</code></td><td>建表 <code>O(n)</code> + <code>m</code> 次 <code>O(1)</code> 查询；同样工作量朴素做法需 <code>O(n·m)</code></td></tr>
+    <tr><td>平均时间复杂度</td><td><code>O(n + m)</code></td><td>耗时只取决于规模与操作次数，与数据内容无关</td></tr>
+    <tr><td>最坏时间复杂度</td><td><code>O(n + m)</code></td><td>无论区间长短，建表都是 <code>O(n)</code>、查询都是 <code>O(1)</code></td></tr>
+    <tr><td>单次建表</td><td><code>O(n)</code></td><td>一次线性扫描 <code>s[i] = s[i-1] + a[i]</code></td></tr>
+    <tr><td>单次区间查询</td><td><code>O(1)</code></td><td>朴素做法需累加 <code>r-l+1</code> 项（最坏 <code>O(n)</code>）</td></tr>
+    <tr><td>单次区间加（差分）</td><td><code>O(1)</code></td><td>只改 <code>d[l]</code> 与 <code>d[r+1]</code>；直接改 <code>a</code> 需 <code>O(r-l+1)</code></td></tr>
+    <tr><td>空间复杂度</td><td><code>O(n)</code></td><td>一维；二维前缀和为 <code>O(nm)</code>，需注意内存上限</td></tr>
+  </tbody>
+</table>
+
+<h2>应用与局限</h2>
+
+<p>常见应用：区间和 / 区间平均查询、<strong>二维前缀和</strong>求子矩形和（公式见上，用于图像积分图、区域染色统计）、<strong>差分数组</strong>处理「多次区间投票 / 覆盖次数统计」（如公交占用区间、时间轴事件叠加）、差分建树与<strong>树上差分</strong>（把路径加拆成两个端点 + LCA 的 4 次点修改）、<strong>高精度 / 多项式</strong>中的差分表。判定「能否使用前缀和」的关键是运算存在逆元：减法可抵消，故求和可以；求最大值没有逆运算，故 <code>max</code> 区间不能用前缀和（应改用 ST 表，见 <a href="binary-lifting.html">倍增</a>）。</p>
+
+<p>局限：① 前缀和是<strong>静态</strong>结构，数组单点修改会让后续所有 <code>s[i]</code> 失效（需 <code>O(n)</code> 重建），动态场景改用树状数组或线段树；② 前缀和可能溢出，<code>n</code> 与元素值较大时用 64 位整数或取模；③ 差分只能处理「区间加」等可线性叠加的修改，无法直接支持区间赋值、区间乘后求和等混合操作。</p>
+
+<div class="admonition info">
+<div class="admonition-title">参考</div>
+<p>OI Wiki 前缀和与差分（<a href="https://oi-wiki.org/prefix-sum/" target="_blank" rel="noopener">https://oi-wiki.org/prefix-sum/</a>）。</p>
+</div>
+
+</main>
+
+<script src="../assets/nav.js" data-base="../"></script>
+<script src="../assets/viz.js"></script>
+<script>
+(function () {
+  var N = 10;
+  var colsEl = document.getElementById("cols");
+  var resultEl = document.getElementById("result");
+  var lInp = document.getElementById("lInp");
+  var rInp = document.getElementById("rInp");
+  var vInp = document.getElementById("vInp");
+  var steps = [];
+  var runner = null;
+  var a = [];
+  var queries = [[3, 7], [1, 10]];
+  var updates = [{ l: 3, r: 7, v: 5 }];
+
+  function zeros(len) { var x = []; for (var i = 0; i < len; i++) x.push(null); return x; }
+  function blanks(len) { var x = []; for (var i = 0; i < len; i++) x.push(""); return x; }
+  function prefix(arr) { var s = [0]; for (var i = 1; i <= N; i++) s[i] = s[i - 1] + arr[i]; return s; }
+  function diff(arr) {
+    var d = [null];
+    for (var i = 1; i <= N; i++) d[i] = arr[i] - (i > 1 ? arr[i - 1] : 0);
+    return d;
+  }
+  function listFrom1(arr) { var p = []; for (var i = 1; i <= N; i++) p.push(arr[i]); return p.join(" "); }
+  // 带符号文本：v = 5 -> "+5"，v = -3 -> "−3"
+  function stext(v) { return (v >= 0 ? "+" : "\u2212") + Math.abs(v); }
+  // 运算符文本：v = 5 -> "+="，v = -3 -> "-="
+  function otext(v) { return v >= 0 ? "+=" : "-="; }
+
+  function randArray() {
+    var arr = [null];
+    for (var i = 1; i <= N; i++) arr.push(SV.randInt(1, 9));
+    return arr;
+  }
+
+  // 预计算：每个 step 是完整快照
+  // { a, s, d（值，null = 尚无值）, aSt, sSt, dSt（单元格状态）, ptrs（列顶指针）, result, msg }
+  function buildSteps() {
+    var out = [];
+    var aShow = a.slice();
+    var sShow = zeros(N + 1);
+    sShow[0] = 0;                       // s[0] = 0 恒成立，是查询公式的基准
+    var dShow = zeros(N + 1);
+    var aSt = blanks(N + 1), sSt = blanks(N + 1), dSt = blanks(N + 1);
+    var ptrs = blanks(N + 1);
+    var result = null;
+    var sFull = prefix(a);
+
+    function snap(msg, phase) {
+      out.push({
+        a: aShow.slice(), s: sShow.slice(), d: dShow.slice(),
+        aSt: aSt.slice(), sSt: sSt.slice(), dSt: dSt.slice(),
+        ptrs: ptrs.slice(), result: result, phase: phase || "view", msg: msg
+      });
+    }
+    function clearHi() {
+      aSt = blanks(N + 1); sSt = blanks(N + 1); dSt = blanks(N + 1);
+      ptrs = blanks(N + 1); result = null;
+    }
+    // 阶段 C 期间旧的 s 表已失效：整行标灰（值仍是旧值，仅示意）
+    function staleS() { for (var z = 1; z <= N; z++) sSt[z] = "eliminated"; }
+
+    /* ---------- 阶段 A：建前缀和表 ---------- */
+    snap("初始数组 a（下标 1~" + N + "）：" + listFrom1(a) + "。总和 s[" + N + "] = " + sFull[N] +
+      "。阶段 A：逐格递推建前缀和表。点击「播放」或「下一步」开始。", "init");
+    for (var i = 1; i <= N; i++) {
+      sShow[i] = sFull[i];
+      for (var j = 1; j < i; j++) sSt[j] = "active";
+      sSt[i] = "comparing";
+      ptrs[i] = "s";
+      snap("s[" + i + "] = s[" + (i - 1) + "] + a[" + i + "] = " + (i > 1 ? sFull[i - 1] : 0) +
+        " + " + a[i] + " = " + sFull[i] + "。", "build");
+    }
+    for (i = 1; i <= N; i++) sSt[i] = "active";
+    ptrs = blanks(N + 1);
+    snap("阶段 A 完成：前缀和表 s[0]=0，s[1.." + N + "] = " +
+      (function () { var p = []; for (var k = 1; k <= N; k++) p.push(sFull[k]); return p.join(" "); })() + "。", "built");
+
+    /* ---------- 阶段 B：区间和查询 ---------- */
+    for (var q = 0; q < queries.length; q++) {
+      var l = queries[q][0], r = queries[q][1];
+      clearHi();
+      for (var k = l; k <= r; k++) aSt[k] = "active";
+      sSt[l - 1] = "comparing"; sSt[r] = "comparing";
+      ptrs[l - 1] = "l-1"; ptrs[l] = "l"; ptrs[r] = "r";
+      snap("阶段 B 查询 " + (q + 1) + "：区间 [" + l + ", " + r + "]（a 行蓝色）。取 s[" + r + "] = " + sFull[r] +
+        " 与 s[" + (l - 1) + "] = " + sFull[l - 1] + " 两格（橙色）相减。", "query");
+      var ans = sFull[r] - sFull[l - 1];
+      sSt[l - 1] = "done"; sSt[r] = "done";
+      result = "sum[" + l + "," + r + "] = " + ans;
+      snap("区间和 = s[" + r + "] − s[" + (l - 1) + "] = " + sFull[r] + " − " + sFull[l - 1] +
+        " = " + ans + " ✅（朴素做法需累加 " + (r - l + 1) + " 项，这里只读 2 格）", "querydone");
+    }
+    clearHi();
+    for (k = 1; k <= N; k++) sSt[k] = "active";
+
+    /* ---------- 阶段 C：差分区间加 ---------- */
+    for (var u = 0; u < updates.length; u++) {
+      var ul = updates[u].l, ur = updates[u].r, uv = updates[u].v;
+      var curS = prefix(a);
+      var curD = diff(a);
+      clearHi();
+      dShow = curD.slice();
+      for (k = 1; k <= N; k++) { dSt[k] = "active"; sSt[k] = "active"; }
+      snap("阶段 C 差分：" + (u + 1) + " 次操作。写出当前差分数组 d（d[1]=a[1]=" + a[1] +
+        "，d[i]=a[i]−a[i−1]）：" + listFrom1(curD) + "。对 d 求前缀和即可还原 a。", "diffinit");
+      var oldL = curD[ul];
+      var oldR = ur < N ? curD[ur + 1] : null;
+      dShow[ul] = oldL + uv;
+      if (ur < N) dShow[ur + 1] = oldR - uv;
+      dSt[ul] = "swapping";
+      if (ur < N) dSt[ur + 1] = "swapping";
+      ptrs[ul] = "l";
+      if (ur < N) ptrs[ur + 1] = "r+1";
+      staleS();
+      snap("区间加 [" + ul + ", " + ur + "] 整体 " + stext(uv) + "：只改两端 —— d[" + ul + "] " + otext(uv) + " " + Math.abs(uv) +
+        "（" + oldL + " → " + dShow[ul] + "）" +
+        (ur < N ? "，d[" + (ur + 1) + "] " + (uv >= 0 ? "-=" : "+=") + " " + Math.abs(uv) + "（" + oldR + " → " + dShow[ur + 1] + "）"
+          : "（r = " + N + " 已是末位，右端点越界无需修改）") + "。改动次数 2，代价 O(1)。", "diffupdate");
+      var running = 0;
+      var aNew = [null];
+      for (i = 1; i <= N; i++) {
+        running += dShow[i];
+        aNew[i] = running;
+        aShow[i] = running;
+        clearHi();
+        staleS();
+        dSt[i] = "comparing";
+        for (k = 1; k < i; k++) { aSt[k] = "done"; dSt[k] = "active"; }
+        for (k = i + 1; k <= N; k++) dSt[k] = "active";
+        ptrs[i] = "累加";
+        snap("对 d 求前缀和还原 a：running = " + (running - dShow[i]) + " + d[" + i + "] = " + running +
+          " → a[" + i + "] = " + running +
+          (i >= ul && i <= ur ? "（在原值 " + a[i] + " 上" + (uv >= 0 ? "加 " : "减 ") + Math.abs(uv) + "）"
+            : "（不在修改区间内，值不变）") + "。", "restore");
+      }
+      var oldTotal = curS[N];
+      a = aNew;
+      aShow = aNew.slice();
+      clearHi();
+      for (k = 1; k <= N; k++) { aSt[k] = "done"; }
+      staleS();
+      snap("还原完成：新数组 a = " + listFrom1(aNew) + "（区间 [" + ul + ", " + ur + "] 每格 " + stext(uv) + "）。", "restored");
+      var newS = prefix(aNew);
+      sShow = newS.slice();
+      clearHi();
+      for (k = 1; k <= N; k++) { aSt[k] = "active"; sSt[k] = "active"; dSt[k] = "active"; }
+      snap("前缀和同步更新：s[" + N + "] 由 " + oldTotal + " 变为 " + newS[N] + "（变化 " + stext(uv) + " × " +
+        (ur - ul + 1) + " = " + stext(newS[N] - oldTotal) + "）。若再做查询 [" + ul + ", " + ur + "]：和 = " +
+        (newS[ur] - newS[ul - 1]) + "（原 " + (curS[ur] - curS[ul - 1]) + "）。", "refix");
+    }
+
+    var finalS = prefix(a);
+    clearHi();
+    for (k = 1; k <= N; k++) { aSt[k] = "active"; sSt[k] = "active"; dSt[k] = "active"; }
+    result = "s[" + N + "] = " + finalS[N];
+    snap("✅ 演示结束：前缀和把区间和查询降为 O(1)（读两格相减），差分把区间加降为 O(1)（改两端点）。最终 a = " +
+      listFrom1(a) + "，s[" + N + "] = " + finalS[N] + "（与数组真实总和一致）。", "end");
+    return out;
+  }
+
+  function cls(st) { return st ? " " + st : ""; }
+
+  function draw(step) {
+    var s = step || steps[0];
+    if (!s) return;
+    var html = "";
+    for (var i = 0; i <= N; i++) {
+      html += '<div class="ps-col">';
+      html += '<div class="cell' + cls(s.aSt[i]) + '">' +
+        (s.a[i] === null || s.a[i] === undefined ? "·" : s.a[i]) +
+        (s.ptrs[i] ? '<span class="ptr">' + s.ptrs[i] + "</span>" : "") + "</div>";
+      html += '<div class="cell' + cls(s.sSt[i]) + '">' +
+        (s.s[i] === null || s.s[i] === undefined ? "·" : s.s[i]) + "</div>";
+      html += '<div class="cell' + cls(s.dSt[i]) + '">' +
+        (s.d[i] === null || s.d[i] === undefined ? "·" : s.d[i]) + "</div>";
+      html += '<div class="col-idx">' + i + "</div>";
+      html += "</div>";
+    }
+    colsEl.innerHTML = html;
+    if (s.result) {
+      resultEl.className = "ps-result on";
+      resultEl.innerHTML = s.result;
+    } else {
+      resultEl.className = "ps-result";
+      resultEl.innerHTML = "（当前阶段没有查询结果）";
+    }
+  }
+
+  function readLR(defL, defR) {
+    var l = parseInt(lInp.value, 10);
+    var r = parseInt(rInp.value, 10);
+    if (isNaN(l)) l = defL;
+    if (isNaN(r)) r = defR;
+    if (l < 1) l = 1;
+    if (l > N) l = N;
+    if (r < 1) r = 1;
+    if (r > N) r = N;
+    if (l > r) { var t = l; l = r; r = t; }
+    lInp.value = l; rInp.value = r;
+    return [l, r];
+  }
+
+  function rebuild() {
+    steps = buildSteps();
+    if (!runner) {
+      runner = SV.runner({
+        host: document.getElementById("runner"),
+        msgEl: document.getElementById("msg"),
+        steps: steps,
+        render: draw
+      });
+    } else {
+      runner.setSteps(steps);
+      draw(null);
+    }
+  }
+
+  document.getElementById("btnQuery").addEventListener("click", function () {
+    var lr = readLR(1, N);
+    queries.push([lr[0], lr[1]]);
+    if (queries.length > 4) queries.shift();
+    rebuild();
+  });
+
+  document.getElementById("btnAdd").addEventListener("click", function () {
+    var lr = readLR(1, N);
+    var v = parseInt(vInp.value, 10);
+    if (isNaN(v)) v = 0;
+    if (v === 0) v = 3;
+    if (v > 9) v = 9;
+    if (v < -9) v = -9;
+    updates.push({ l: lr[0], r: lr[1], v: v });
+    if (updates.length > 3) updates.shift();
+    rebuild();
+  });
+
+  document.getElementById("btnRandom").addEventListener("click", function () {
+    a = randArray();
+    queries = [[SV.randInt(1, 4), SV.randInt(6, N)], [1, N]];
+    updates = [{ l: SV.randInt(1, 5), r: SV.randInt(6, N), v: SV.randInt(2, 6) }];
+    rebuild();
+  });
+
+  a = randArray();
+  rebuild();
+})();
+</script>
+</body>
+</html>

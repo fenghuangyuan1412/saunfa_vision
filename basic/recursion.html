@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>递归 &amp; 分治 - Saunfa Vision</title>
+<link rel="stylesheet" href="../assets/style.css">
+<style>
+.hn-wrap { display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-start; }
+.hn-svg { flex: 0 0 auto; }
+.hn-side { flex: 1 1 250px; min-width: 250px; max-width: 400px; }
+.box-label { font-size: 12.5px; color: var(--md-text-light); font-weight: 700; display: block; margin-bottom: 6px; }
+.frame {
+  font: 12.5px/1.5 ui-monospace, Consolas, monospace;
+  border: 1px solid rgba(0,0,0,.16); border-radius: 3px;
+  padding: 3px 8px; margin-bottom: 4px;
+  background: var(--viz-default); color: #1a237e;
+}
+.frame.top { background: var(--viz-active); color: #fff; border-color: #2b3a8f; }
+.frame.pop { background: var(--viz-eliminated); color: rgba(0,0,0,.45); }
+.frame.empty { background: #fff; color: rgba(0,0,0,.4); font-style: italic; }
+.hn-meta { font-size: 12.5px; color: var(--md-text-light); margin-top: 8px; }
+.hn-meta b { color: var(--md-primary); }
+.sv-svg-label { font-size: 12px; fill: rgba(0,0,0,.55); font-family: ui-monospace, Consolas, monospace; }
+.sv-disk-text { font-size: 11px; fill: rgba(0,0,0,.65); font-family: ui-monospace, Consolas, monospace; }
+</style>
+</head>
+<body data-page="basic/recursion">
+<main class="sv-content">
+
+<h1>递归 &amp; 分治</h1>
+
+<p><strong>递归</strong>（Recursion）是函数在其定义中直接或间接调用自身的写法：把问题化为「同形状的更小问题」，直到命中边界条件后逐层返回。<strong>分治</strong>（Divide and Conquer）是递归最重要的应用范式：分解 → 递归求解子问题 → 合并结果。本页以<strong>汉诺塔</strong>为例，同时观察递归调用栈的压入与弹出。</p>
+
+<h2>算法原理</h2>
+
+<p><strong>递归三要素</strong>：</p>
+
+<ul>
+  <li><strong>边界条件</strong>（base case）：最小规模下可直接回答，不再递归。缺失边界会导致无限递归直至栈溢出。</li>
+  <li><strong>自相似</strong>：子问题与原问题结构相同，只是规模更小，因此可以复用同一段代码。</li>
+  <li><strong>规模缩小</strong>：每次递归调用都必须让问题严格变小（如 <code>n</code> 变为 <code>n-1</code> 或 <code>n/2</code>），保证有限步内到达边界。</li>
+</ul>
+
+<p><strong>调用栈</strong>：每次函数调用压入一帧，保存实参、局部变量与返回地址；函数返回时弹栈并回到调用点继续执行。递归深度就是栈的最大帧数，这也是递归的空间代价。</p>
+
+<p><strong>汉诺塔</strong>：三根柱子 A、B、C，A 上从底到顶叠着 <code>n</code> 个大小互异的盘。要求把所有盘移到 C，每次只能移动一个盘，且任何时刻大盘不能位于小盘之上。设 <code>hanoi(k, from, to, aux)</code> 表示「把 <code>from</code> 柱顶部最小的 <code>k</code> 个盘整体搬到 <code>to</code>」，则：</p>
+
+<ol>
+  <li>上面 <code>k-1</code> 个盘先借助 <code>to</code> 搬到 <code>aux</code>；</li>
+  <li>剩下的最大盘（盘 <code>k</code>）直接从 <code>from</code> 搬到 <code>to</code>；</li>
+  <li>再把 <code>aux</code> 上的 <code>k-1</code> 个盘借助 <code>from</code> 搬到 <code>to</code>。</li>
+</ol>
+
+<pre><code>function hanoi(k, from, to, aux):        // 把 from 顶部最小的 k 个盘搬到 to
+    if k == 0: return                    // 边界：没有盘需要搬
+    hanoi(k - 1, from, aux, to)          // 分治：上层 k-1 个盘暂存到 aux
+    move(disk k, from, to)               // 合并：最大的盘单独搬到 to
+    hanoi(k - 1, aux, to, from)          // 分治：暂存的 k-1 个盘归位到 to</code></pre>
+
+<p>记 <code>T(k)</code> 为搬 <code>k</code> 个盘所需的移动次数，则 <code>T(k) = 2T(k-1) + 1</code>，<code>T(0) = 0</code>，解得 <code>T(k) = 2^k − 1</code>。</p>
+
+<p><strong>分治的一般形式与主定理直觉</strong>：若把规模 <code>n</code> 的问题分成 <code>a</code> 个规模 <code>n/b</code> 的子问题，合并代价为 <code>O(n^d)</code>，则递归式 <code>T(n) = a·T(n/b) + O(n^d)</code>。比较「子问题个数带来的增长 <code>log_b a</code>」与「合并代价的增长 <code>d</code>」：谁的增长更快，谁就决定总复杂度；两者相当时（<code>d = log_b a</code>）多出一个对数因子。例如归并排序 <code>a=2, b=2, d=1</code>，<code>log_2 2 = 1 = d</code>，故 <code>T(n) = O(n log n)</code>。</p>
+
+<div class="admonition warning">
+<div class="admonition-title">注意：递归深度与爆栈</div>
+<p>递归的深度受调用栈容量限制。对 <code>n = 10^5</code> 量级的线性递归（如求 <code>n!</code> 的朴素递归、链式 DFS），常见的默认栈大小（约 1 MB，容纳上万帧）会被耗尽，产生栈溢出（Stack Overflow）。工程与竞赛中的对策：① 改写为<strong>迭代 + 显式栈</strong>，把「帧」放进数组自行管理，栈空间搬到堆；② 加深栈限制（不总是可行）；③ 用<strong>记忆化</strong>或<strong>递推</strong>消除重复子问题，如把斐波那契递归改为 <code>O(n)</code> 递推。汉诺塔的递归深度只有 <code>n</code>，但移动次数是 <code>2^n − 1</code>：它「栈不深但指数慢」，正好说明深度与时间复杂度是两个独立维度。</p>
+</div>
+
+<h2>可视化演示</h2>
+
+<p>左侧是汉诺塔的三根柱子与盘（橙色 = 即将移动的栈顶盘，蓝色 = 正在搬动的盘，绿色 = 刚搬到目标位置的盘），右侧是<strong>递归调用栈</strong>：蓝色高亮为栈顶帧，灰色为刚弹出的帧。每一步只对应一个原子动作——压栈、准备取盘、搬盘、弹栈。盘数 <code>n</code> 限定 3~4，保证移动次数不超过 <code>2⁴−1 = 15</code>。</p>
+
+<div class="viz-panel">
+  <div class="viz-stage">
+    <div class="hn-wrap">
+      <div class="hn-svg" id="svgBox"></div>
+      <div class="hn-side">
+        <span class="box-label">递归调用栈（上为栈顶）</span>
+        <div id="stackBox"></div>
+        <div class="hn-meta" id="metaBox"></div>
+      </div>
+    </div>
+  </div>
+  <div class="viz-msg" id="msg"></div>
+  <div class="viz-legend">
+    <span class="chip"><span class="sw" style="background:var(--viz-default)"></span>静止的盘 / 已返回的栈帧位置</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-comparing)"></span>即将移动的栈顶盘</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-active)"></span>正在移动的盘 / 栈顶帧</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-done)"></span>刚搬到位的盘</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-eliminated)"></span>刚刚弹出的栈帧</span>
+  </div>
+  <div id="runner"></div>
+  <div class="viz-controls">
+    <label>盘数 n（3~4）<input type="number" id="nInp" min="3" max="4" step="1" value="3"></label>
+    <button id="btnRandom" class="viz-btn">🎲 换一组</button>
+  </div>
+</div>
+
+<h2>复杂度分析</h2>
+
+<table>
+  <thead><tr><th>指标</th><th>量级</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td>移动次数</td><td><code>2ⁿ − 1</code></td><td><code>T(n)=2T(n−1)+1, T(0)=0</code>；n=3 为 7 次，n=4 为 15 次</td></tr>
+    <tr><td>最优时间复杂度</td><td><code>Θ(2ⁿ)</code></td><td>汉诺塔无「更简单的输入」，任何输入都必须搬满 <code>2ⁿ−1</code> 次</td></tr>
+    <tr><td>平均时间复杂度</td><td><code>Θ(2ⁿ)</code></td><td>递归调用次数即满二叉树结点个数 <code>2^(n+1) − 1</code> 阶</td></tr>
+    <tr><td>最坏时间复杂度</td><td><code>Θ(2ⁿ)</code></td><td>同上；这也说明分治若子问题过多会退化为指数</td></tr>
+    <tr><td>空间复杂度</td><td><code>O(n)</code></td><td>调用栈最深 <code>n</code> 帧（沿 <code>hanoi(n−1)</code> 一路下潜）</td></tr>
+  </tbody>
+</table>
+
+<h2>应用与局限</h2>
+
+<p>分治的典型应用：<strong>归并排序 / 快速排序</strong>（拆分数组后递归再合并）、<strong>最大子数组和</strong>（答案要么在左半、要么在右半、要么跨越中点，取三者最大，可得 <code>O(n log n)</code> 解法，线性 DP 解法见 <a href="../dp/max-subarray.html">最大子段和</a>）、<strong>最近点对</strong>（按 x 排序后二分，合并时只需检查带状区域内常数个点，<code>O(n log n)</code>）、<strong>快速幂与矩阵幂</strong>（把指数折半）、<strong>FFT</strong> 与<strong>大整数乘法</strong>。</p>
+
+<p>局限：① 存在重叠子问题时朴素递归会指数爆炸（如斐波那契），需记忆化或改递推；② 深递归有爆栈风险，可用<strong>显式栈模拟</strong>把递归改写为迭代——本页右侧的调用栈正是这种显式管理的对象，把「压栈/弹栈」写进数组就能改造成非递归版本；③ 每层函数调用有常数开销，纯性能场景下手工迭代往往更快。</p>
+
+<div class="admonition info">
+<div class="admonition-title">参考</div>
+<p>OI Wiki 首页的「语言基础 / 基础算法」章节（<a href="https://oi-wiki.org/" target="_blank" rel="noopener">https://oi-wiki.org/</a>）中关于递归、函数与栈的内容；Introduction to Algorithms 第 2 章分治思想、第 7 章快速排序的递归深度分析。</p>
+</div>
+
+</main>
+
+<script src="../assets/nav.js" data-base="../"></script>
+<script src="../assets/viz.js"></script>
+<script>
+(function () {
+  var svgBox = document.getElementById("svgBox");
+  var stackBox = document.getElementById("stackBox");
+  var metaBox = document.getElementById("metaBox");
+  var nInp = document.getElementById("nInp");
+  var steps = [];
+  var runner = null;
+  var SUP = { 2: "²", 3: "³", 4: "⁴", 5: "⁵" };
+
+  function clampN(v) {
+    var x = parseInt(v, 10);
+    if (isNaN(x)) return 3;
+    if (x < 3) return 3;
+    if (x > 4) return 4;
+    return x;
+  }
+
+  function frameLabel(f) {
+    return "solve(" + f.k + ", " + f.from + "\u2192" + f.to + ", 借" + f.aux + ")";
+  }
+
+  // 预计算：每个 step 是完整快照
+  // { pegs:{A,B,C}（bottom->top）, stack:[{label,top}], popped, moves, depth, maxDepth,
+  //   pending:{peg,size}, movedDisk:{peg,size}, justDone:{peg,size}, total, msg }
+  function buildSteps(n) {
+    var total = Math.pow(2, n) - 1;
+    var pegs = { A: [], B: [], C: [] };
+    for (var d = n; d >= 1; d--) pegs.A.push(d);   // A 柱底到大盘，顶是最小的盘 1
+    var stack = [];
+    var moves = 0;
+    var maxDepth = 0;
+    var lastDone = null;
+    var out = [];
+
+    function snap(o) {
+      var st = {
+        pegs: { A: pegs.A.slice(), B: pegs.B.slice(), C: pegs.C.slice() },
+        stack: stack.map(function (f) { return { label: frameLabel(f), k: f.k, top: false }; }),
+        popped: o.popped || null,
+        moves: moves,
+        depth: stack.length,
+        maxDepth: maxDepth,
+        pending: o.pending || null,
+        movedDisk: o.movedDisk || null,
+        justDone: lastDone,
+        total: total,
+        n: n,
+        msg: o.msg
+      };
+      if (st.stack.length) st.stack[st.stack.length - 1].top = true;
+      if (o.keepDone) st.justDone = lastDone;
+      out.push(st);
+      lastDone = o.nextDone || null;
+    }
+
+    function doMove(from, to, k) {
+      snap({ pending: { peg: from, size: k },
+        msg: "盘 " + k + " 是 " + from + " 柱的栈顶（橙色），把它取起，目标 " + to + " 柱。" });
+      pegs[from].pop();
+      pegs[to].push(k);
+      moves++;
+      snap({ movedDisk: { peg: to, size: k }, nextDone: { peg: to, size: k },
+        msg: "盘 " + k + " 从 " + from + " 移到 " + to + "（第 " + moves + " / " + total + " 次移动）。" });
+    }
+
+    function solve(k, from, to, aux) {
+      stack.push({ k: k, from: from, to: to, aux: aux });
+      if (stack.length > maxDepth) maxDepth = stack.length;
+      snap({ msg: "进入 " + frameLabel({ k: k, from: from, to: to, aux: aux }) +
+        "：先把 " + from + " 上最小的 " + k + " 个盘移到 " + to + "（当前栈深 " + stack.length + "）。" });
+      if (k === 1) {
+        doMove(from, to, 1);
+      } else {
+        solve(k - 1, from, aux, to);
+        doMove(from, to, k);
+        solve(k - 1, aux, to, from);
+      }
+      var f = stack.pop();
+      snap({ popped: frameLabel(f),
+        msg: frameLabel(f) + " 完成，弹栈返回。当前栈深 " + stack.length + "。" });
+    }
+
+    snap({ msg: "初始状态：" + n + " 个盘全部在 A 柱（自底向上 " +
+      pegs.A.join(" ") + "），目标是把它们整体搬到 C 柱。共需 " + total + " 次移动。点击「播放」或「下一步」开始。" });
+    solve(n, "A", "C", "B");
+    snap({ msg: n + " 个盘全部移到 C ✅ 共 " + moves + " = 2" + (SUP[n] || ("^" + n)) +
+      "−1 次移动，调用栈已清空，最大递归深度 " + maxDepth + "。" });
+    return out;
+  }
+
+  var PEGX = { A: 66, B: 200, C: 334 };
+  var BASE_Y = 168;
+
+  function diskColor(s, pegName, size) {
+    if (s.pending && s.pending.peg === pegName && s.pending.size === size) return "var(--viz-comparing)";
+    if (s.movedDisk && s.movedDisk.peg === pegName && s.movedDisk.size === size) return "var(--viz-active)";
+    if (s.justDone && s.justDone.peg === pegName && s.justDone.size === size) return "var(--viz-done)";
+    return "var(--viz-default)";
+  }
+
+  function drawSvg(s) {
+    var svg = '<svg viewBox="0 0 400 200" width="400" height="200">';
+    svg += '<rect x="8" y="' + BASE_Y + '" width="384" height="10" rx="2" fill="#9fa8da"></rect>';
+    var names = ["A", "B", "C"];
+    for (var i = 0; i < 3; i++) {
+      var nm = names[i];
+      svg += '<rect x="' + (PEGX[nm] - 3) + '" y="46" width="6" height="' + (BASE_Y - 46) +
+        '" rx="2" fill="#c5cae9" stroke="rgba(0,0,0,.18)" stroke-width="1"></rect>';
+      svg += '<text x="' + PEGX[nm] + '" y="194" text-anchor="middle" class="sv-svg-label">' + nm + "</text>";
+      var arr = s.pegs[nm];
+      for (var j = 0; j < arr.length; j++) {
+        var size = arr[j];
+        var w = 26 + size * 22;
+        var x = PEGX[nm] - w / 2;
+        var y = BASE_Y - 22 * (j + 1) + 2;
+        svg += '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="20" rx="5" fill="' +
+          diskColor(s, nm, size) + '" stroke="rgba(0,0,0,.22)" stroke-width="1"></rect>';
+        svg += '<text x="' + PEGX[nm] + '" y="' + (y + 14) +
+          '" text-anchor="middle" class="sv-disk-text">' + size + "</text>";
+      }
+    }
+    svg += "</svg>";
+    return svg;
+  }
+
+  function draw(step) {
+    var s = step || steps[0];
+    if (!s) return;
+    svgBox.innerHTML = drawSvg(s);
+    var html = "";
+    if (s.popped) html += '<div class="frame pop">' + s.popped + "（已弹出）</div>";
+    if (!s.stack.length) {
+      html += '<div class="frame empty">（调用栈为空）</div>';
+    } else {
+      for (var i = s.stack.length - 1; i >= 0; i--) {
+        html += '<div class="frame' + (s.stack[i].top ? " top" : "") + '">' + s.stack[i].label + "</div>";
+      }
+    }
+    stackBox.innerHTML = html;
+    metaBox.innerHTML = "移动次数：<b>" + s.moves + "</b> / " + s.total +
+      "　栈深：<b>" + s.depth + "</b>（历史最大 " + s.maxDepth + "）";
+  }
+
+  function applyN(n) {
+    nInp.value = n;
+    steps = buildSteps(n);
+    if (!runner) {
+      runner = SV.runner({
+        host: document.getElementById("runner"),
+        msgEl: document.getElementById("msg"),
+        steps: steps,
+        render: draw
+      });
+    } else {
+      runner.setSteps(steps);
+      draw(null);
+    }
+  }
+
+  document.getElementById("btnRandom").addEventListener("click", function () {
+    var n = clampN(nInp.value);
+    if (!isNaN(parseInt(nInp.value, 10))) {
+      // 输入合法时随机换深度，让「换一组」既有随机性也尊重输入范围
+      n = SV.randInt(3, 4);
+    }
+    applyN(n);
+  });
+
+  nInp.addEventListener("change", function () { applyN(clampN(nInp.value)); });
+
+  applyN(3);
+})();
+</script>
+</body>
+</html>

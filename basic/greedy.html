@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>贪心 - Saunfa Vision</title>
+<link rel="stylesheet" href="../assets/style.css">
+<style>
+.tl-wrap { position: relative; }
+.tl-rows { position: relative; padding-bottom: 22px; }
+.tl-row { position: relative; height: 26px; margin: 3px 0; }
+.iv {
+  position: absolute; top: 2px; height: 22px; min-width: 26px;
+  border: 1px solid rgba(0,0,0,.2); border-radius: 3px;
+  background: var(--viz-default); color: #1a237e;
+  font-size: 11px; font-weight: 700; line-height: 20px; text-align: center;
+  overflow: hidden; white-space: nowrap; box-sizing: border-box;
+  transition: background .15s;
+}
+.iv.comparing { background: var(--viz-comparing); color: #3b2000; }
+.iv.done { background: var(--viz-done); color: #fff; }
+.iv.eliminated { background: var(--viz-eliminated); color: rgba(0,0,0,.35); }
+.tl-axis { position: relative; height: 20px; border-bottom: 1px solid rgba(0,0,0,.24); margin-bottom: 10px; }
+.tl-axis .tick { position: absolute; top: 0; transform: translateX(-50%); font-size: 10.5px; color: rgba(0,0,0,.45); }
+.tl-cut { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--viz-active); opacity: .8; }
+.cut-tag { position: absolute; bottom: -18px; transform: translateX(-50%); font-size: 11.5px;
+  font-weight: 700; color: var(--md-primary); white-space: nowrap; }
+.box-label { font-size: 12.5px; color: var(--md-text-light); font-weight: 700; display: block; margin: 0 0 6px; }
+</style>
+</head>
+<body data-page="basic/greedy">
+<main class="sv-content">
+
+<h1>贪心</h1>
+
+<p><strong>贪心</strong>（Greedy）在每一步都取当前看起来最优的选择（局部最优），一旦做出选择就不再回退，期望由此得到全局最优解。它比动态规划更轻量——不需要记录所有子问题——但代价是<strong>只有满足特定性质的问题才能用贪心</strong>。</p>
+
+<h2>算法原理</h2>
+
+<p>贪心正确性依赖两个前提：</p>
+
+<ul>
+  <li><strong>贪心选择性</strong>：存在某个局部最优选择，使得做出该选择之后仍能到达全局最优解（即第一步就能「定下来」）。</li>
+  <li><strong>最优子结构</strong>：问题的最优解包含其子问题的最优解。做完选择后剩下的子问题与原问题同类型。</li>
+</ul>
+
+<p><strong>如何证明贪心是对的</strong>——交换论证（exchange argument）：设贪心解为 <code>G = g₁g₂…gₖ</code>，最优解为 <code>O = o₁o₂…oₖ</code>。若二者不同，取第一个不同的位置 <code>i</code>，证明把 <code>oᵢ</code> 替换为 <code>gᵢ</code> 后解依然合法且不变差（因为 <code>gᵢ</code> 是按规则选出的「最早结束 / 最划算」的那个，替换不会占用更多资源）。反复替换可把 <code>O</code> 逐步变成 <code>G</code>，且价值不减，故贪心解最优。</p>
+
+<p><strong>经典例子：活动选择 / 区间调度</strong>。给定 <code>n</code> 个区间 <code>[start, end)</code>（同一时间只能进行一个活动），求最多能选出的两两不重叠的区间个数。贪心策略：<strong>按结束时间升序排序，依次考察，只要与上一个已选区间不冲突就选它</strong>。直觉是「越早结束的活动给后面留出的时间越多」。形式化：设贪心首个选中的是结束最早的区间 <code>g</code>，任一最优解中最先结束的活动为 <code>o</code>，把 <code>o</code> 换成 <code>g</code> 不会与 <code>o</code> 之后的活动冲突（因为 <code>end(g) &le; start(o)</code> 之后仍成立），故存在包含 <code>g</code> 的最优解，递归下去即得证。</p>
+
+<pre><code>function activitySelection(intervals[1..n]):    // 区间为 [start, end)
+    sort intervals by end ascending (tie: start descending)
+    chosen = [], lastEnd = -infinity
+    for i = 1 to n:
+        if intervals[i].start &gt;= lastEnd:       // 与上一个已选区间不冲突
+            chosen.append(intervals[i])
+            lastEnd = intervals[i].end          // 贪心：一旦选定不回退
+    return chosen</code></pre>
+
+<div class="admonition tip">
+<div class="admonition-title">提示：贪心 vs 动态规划</div>
+<p>贪心是 DP 的「退化特例」：DP 在转移时要枚举所有可能并取最优，贪心则在每一步直接锁定一个选择。判断能否贪心最快的方法是<strong>造小反例</strong>：写几个极端规模的手工实例，看贪心结果与暴力枚举结果是否一致。</p>
+</div>
+
+<h2>可视化演示</h2>
+
+<p>时间轴上每一行是一个区间 <code>[start, end)</code>，块宽按 duration 与总时长 20 的比例缩放。演示先按结束时间升序重排（单独一步），再自上而下扫描：橙色 = 当前候选，绿色 = 选中并更新 <code>lastEnd</code>（蓝色竖线即当前 <code>lastEnd</code>），灰色 = 与已选区间冲突被跳过。</p>
+
+<div class="viz-panel">
+  <div class="viz-stage">
+    <div class="tl-wrap">
+      <span class="box-label" id="orderLabel"></span>
+      <div class="tl-axis" id="axisCap"></div>
+      <div class="tl-rows" id="rows"></div>
+    </div>
+  </div>
+  <div class="viz-msg" id="msg"></div>
+  <div class="viz-legend">
+    <span class="chip"><span class="sw" style="background:var(--viz-default)"></span>未考察</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-comparing)"></span>当前候选区间</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-done)"></span>已选中</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-eliminated)"></span>冲突跳过</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-active)"></span>lastEnd 位置</span>
+  </div>
+  <div id="runner"></div>
+  <div class="viz-controls">
+    <button id="btnRandom" class="viz-btn">🎲 随机新区间组</button>
+  </div>
+</div>
+
+<h2>复杂度分析</h2>
+
+<table>
+  <thead><tr><th>指标</th><th>量级</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td>最优时间复杂度</td><td><code>O(n log n)</code></td><td>瓶颈始终在按结束时间排序</td></tr>
+    <tr><td>平均时间复杂度</td><td><code>O(n log n)</code></td><td>排序 <code>O(n log n)</code> + 一次线性扫描 <code>O(n)</code></td></tr>
+    <tr><td>最坏时间复杂度</td><td><code>O(n log n)</code></td><td>若输入已按结束时间有序，可用线性插入排序式优化，但比较模型下仍为 <code>O(n log n)</code></td></tr>
+    <tr><td>空间复杂度</td><td><code>O(n)</code></td><td>存放排序后的区间与答案；原地排序时为 <code>O(log n)</code> 栈空间</td></tr>
+  </tbody>
+</table>
+
+<div class="admonition warning">
+<div class="admonition-title">注意：贪心会失败的例子（0/1 背包按密度）</div>
+<p>「每步取单位价值最高」在 <strong>0/1 背包</strong> 上并不最优。背包容量 50，三个物品：A（重 10，值 60，密度 6.0）、B（重 20，值 100，密度 5.0）、C（重 30，值 120，密度 4.0）。按密度贪心先取 A（已用 10），再取 B（已用 30），此时剩容量 20 装不下 C，得 <strong>60 + 100 = 160</strong>。而正确最优解是取 <strong>B + C</strong>：重量 <code>20 + 30 = 50</code> 恰好装满，价值 <code>100 + 120 = 220 &gt; 160</code>。原因：贪心选择「密度最高」并不能保证剩余容量被有效利用，问题缺少「局部最优可延伸到全局最优」的贪心选择性。此时应使用动态规划（见 <a href="../dp/knapsack-01.html">0/1 背包</a>）；只有<strong>分数背包</strong>（可切开物品）按密度贪心才正确。</p>
+</div>
+
+<h2>应用与局限</h2>
+
+<p>常见贪心模型：<strong>区间调度</strong>（本页，按右端点）、<strong>区间染色 / 最少教室</strong>（按左端点扫描 + 优先队列维护结束时间）、<strong>Huffman 编码</strong>（每次合并权值最小的两棵树，用优先队列实现，<code>O(n log n)</code>）、<strong>最小生成树</strong> Kruskal / Prim（每次取不成环的最小边）、<strong>最短路</strong> Dijkstra（每次取暂定距离最小的点）、<strong>任务调度</strong>、各类「字典序最小」构造（如单调栈移除 k 个数字）。</p>
+
+<p>局限：贪心不可回退，正确性强依赖问题结构，通常需要交换论证或拟阵理论保证。判错时的典型症状是「前面吃掉资源导致后面更优组合无法凑成」，如上述 0/1 背包。经验做法：先猜贪心策略，再用小数据暴力对拍验证；一旦找到反例就退回动态规划或搜索。</p>
+
+<div class="admonition info">
+<div class="admonition-title">参考</div>
+<p>OI Wiki 贪心章节（<a href="https://oi-wiki.org/greedy/" target="_blank" rel="noopener">https://oi-wiki.org/greedy/</a>）；Introduction to Algorithms 第 16 章（贪心算法、Huffman 编码、活动选择问题）。</p>
+</div>
+
+</main>
+
+<script src="../assets/nav.js" data-base="../"></script>
+<script src="../assets/viz.js"></script>
+<script>
+(function () {
+  var rowsEl = document.getElementById("rows");
+  var axisEl = document.getElementById("axisCap");
+  var orderEl = document.getElementById("orderLabel");
+  var steps = [];
+  var runner = null;
+  var T = 20; // 时间轴总长
+
+  function fmt(iv) { return "[" + iv.s + "," + iv.e + ")"; }
+
+  function genIntervals() {
+    var list = [];
+    for (var i = 0; i < 8; i++) {
+      var s = SV.randInt(0, 16);
+      var e = s + SV.randInt(2, Math.max(2, T - s));
+      if (e > T) e = T;
+      if (e <= s) e = s + 1;
+      list.push({ s: s, e: e, id: i + 1 });
+    }
+    return list;
+  }
+
+  function sortedCopy(list) {
+    var c = list.slice();
+    c.sort(function (a, b) { return a.e - b.e || b.s - a.s; });
+    return c;
+  }
+
+  // 预计算：每个 step 是完整快照 {items:[{s,e,id,state}], lastEnd, chosenCount, phase, msg}
+  function buildSteps(list) {
+    var out = [];
+    function snap(o) {
+      out.push({
+        items: o.items,
+        lastEnd: o.lastEnd,
+        chosenCount: o.chosenCount,
+        chosen: o.chosen.slice(),
+        phase: o.phase,
+        msg: o.msg
+      });
+    }
+    var orig = list.map(function (x) { return { s: x.s, e: x.e, id: x.id, state: "idle" }; });
+    snap({ items: orig, lastEnd: null, chosenCount: 0, chosen: [], phase: "orig",
+      msg: "原始 " + list.length + " 个区间（顺序即输入顺序）：" +
+        list.map(fmt).join("、") + "。目标是选出最多的两两不重叠区间。点击「播放」或「下一步」开始。" });
+
+    var ord = sortedCopy(list).map(function (x) { return { s: x.s, e: x.e, id: x.id, state: "idle" }; });
+    snap({ items: ord.slice(), lastEnd: null, chosenCount: 0, chosen: [], phase: "sorted",
+      msg: "按结束时间升序（同结束时刻按开始时间降序）重排后顺序为：" +
+        ord.map(fmt).join(" → ") + "。接下来自上而下扫描。" });
+
+    var items = ord.map(function (x) { return { s: x.s, e: x.e, id: x.id, state: "idle" }; });
+    var lastEnd = null;
+    var chosen = [];
+    for (var i = 0; i < items.length; i++) {
+      items[i].state = "comparing";
+      snap({ items: items.slice(), lastEnd: lastEnd, chosenCount: chosen.length, chosen: chosen.slice(),
+        phase: "scan",
+        msg: "扫描第 " + (i + 1) + " 条：候选区间 " + fmt(items[i]) +
+          "，判定条件是 start ≥ lastEnd" + (lastEnd === null ? "（当前尚无已选区间，直接通过）" : "（当前 lastEnd = " + lastEnd + "）") + "。" });
+      var oldLastEnd = lastEnd;
+      if (oldLastEnd === null || items[i].s >= oldLastEnd) {
+        items[i].state = "done";
+        lastEnd = items[i].e;
+        chosen.push(fmt(items[i]));
+        snap({ items: items.slice(), lastEnd: lastEnd, chosenCount: chosen.length, chosen: chosen.slice(),
+          phase: "take",
+          msg: "start = " + items[i].s + " ≥ " + (oldLastEnd === null ? "空集" : "lastEnd = " + oldLastEnd) +
+            "，与已选区间不冲突 → 选中 " + fmt(items[i]) + "，lastEnd 由 " +
+            (oldLastEnd === null ? "无" : oldLastEnd) + " 更新为 " + items[i].e +
+            "（已选 " + chosen.length + " 个：" + chosen.join("、") + "）。" });
+      } else {
+        items[i].state = "eliminated";
+        snap({ items: items.slice(), lastEnd: lastEnd, chosenCount: chosen.length, chosen: chosen.slice(),
+          phase: "skip",
+          msg: "区间 " + fmt(items[i]) + " 与已选最后一个（结束时刻 " + lastEnd + "）冲突（start = " +
+            items[i].s + " < " + lastEnd + "），跳过。" });
+      }
+    }
+    snap({ items: items.slice(), lastEnd: lastEnd, chosenCount: chosen.length, chosen: chosen.slice(),
+      phase: "end",
+      msg: "最多可选 " + chosen.length + " 个区间：" + chosen.join("、") +
+        " ✅（按结束时间排序后贪心最优，扫描共 " + items.length + " 次，无回溯）" });
+    return out;
+  }
+
+  function pct(v) { return (100 * v / T) + "%"; }
+
+  function draw(step) {
+    var s = step || steps[0];
+    if (!s) return;
+
+    var axis = "";
+    for (var t = 0; t <= T; t += 2) {
+      axis += '<span class="tick" style="left:' + pct(t) + '">' + t + "</span>";
+    }
+    axisEl.innerHTML = axis;
+
+    var html = "";
+    for (var i = 0; i < s.items.length; i++) {
+      var it = s.items[i];
+      var left = 100 * it.s / T;
+      var width = 100 * (it.e - it.s) / T;
+      html += '<div class="tl-row">' +
+        '<div class="iv ' + it.state + '" style="left:' + left + "%;width:" + width + '%">' +
+        fmt(it) + "</div></div>";
+    }
+    if (s.lastEnd !== null && s.lastEnd !== undefined) {
+      html += '<div class="tl-cut" style="left:' + pct(s.lastEnd) + '"></div>' +
+        '<div class="cut-tag" style="left:' + pct(s.lastEnd) + '">lastEnd=' + s.lastEnd + "</div>";
+    }
+    rowsEl.innerHTML = html;
+
+    orderEl.innerHTML = "区间共 " + s.items.length + " 条（时间轴 0~" + T + "）　已选中 <b>" + s.chosenCount +
+      "</b> 条　阶段：" +
+      (s.phase === "orig" ? "原始顺序" : s.phase === "sorted" ? "已按结束时间排序" :
+        s.phase === "scan" ? "判定中" : s.phase === "take" ? "选中" : s.phase === "skip" ? "跳过" : "结束");
+  }
+
+  function restart() {
+    steps = buildSteps(genIntervals());
+    if (!runner) {
+      runner = SV.runner({
+        host: document.getElementById("runner"),
+        msgEl: document.getElementById("msg"),
+        steps: steps,
+        render: draw
+      });
+    } else {
+      runner.setSteps(steps);
+      draw(null);
+    }
+  }
+
+  document.getElementById("btnRandom").addEventListener("click", restart);
+  restart();
+})();
+</script>
+</body>
+</html>

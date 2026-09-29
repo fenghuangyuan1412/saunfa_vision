@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>最长上升子序列 - Saunfa Vision</title>
+<link rel="stylesheet" href="../assets/style.css">
+<style>
+.lis-row { display: flex; align-items: flex-start; gap: 10px; flex-wrap: wrap; }
+.lis-row .row-label {
+  font-size: 12.5px; font-weight: 700; color: var(--md-text-light);
+  padding-top: 44px; white-space: nowrap; min-width: 62px;
+}
+.lis-row .cell-stage { padding: 26px 6px 26px; }
+.lis-row .cell { width: 42px; height: 42px; font-size: 13.5px; flex: none; }
+.lis-row .cell.empty { background: #fff; border-style: dashed; color: rgba(0,0,0,.22); font-weight: 400; }
+.lis-row .cell.dim { opacity: .45; }
+.lis-note {
+  margin-top: 6px; font-size: 13px; color: var(--md-text-light);
+  background: rgba(64,81,181,.06); border-radius: 4px; padding: 6px 10px;
+}
+.lis-note b { color: var(--md-primary); }
+.lis-tbl { font-size: 13.5px; }
+.lis-tbl td code { white-space: nowrap; }
+</style>
+</head>
+<body data-page="dp/lis">
+<main class="sv-content">
+
+<h1>最长上升子序列</h1>
+
+<p><strong>最长上升子序列</strong>（Longest Increasing Subsequence，LIS）要求在一个序列中选出尽量多的元素，使它们<strong>下标递增</strong>且<strong>取值严格递增</strong>（不要求连续）。它是线性 DP 的代表题，也是「状态定义决定一切」的最好教材：状态定义错一个字，转移就彻底不成立。</p>
+
+<h2>算法原理</h2>
+
+<p>设序列为 <code>A[0..n-1]</code>。</p>
+
+<ul>
+  <li><strong>状态定义</strong>：<code>dp[i]</code> = 以 <code>A[i]</code> <strong>结尾</strong>的上升子序列的最大长度。「结尾」意味着 <code>A[i]</code> 必须被选中，并且位于子序列末尾。</li>
+  <li><strong>转移方程</strong>：<code>dp[i] = max(dp[j] + 1)</code>，枚举所有 <code>j &lt; i</code> 且 <code>A[j] &lt; A[i]</code>。</li>
+  <li><strong>边界条件</strong>：不存在合法的 <code>j</code> 时 <code>dp[i] = 1</code>（单独一个元素也是长度为 1 的上升子序列）。</li>
+  <li><strong>填表顺序</strong>：<code>i</code> 从小到大；计算 <code>dp[i]</code> 时所有 <code>j &lt; i</code> 已就绪。</li>
+  <li><strong>答案位置</strong>：<code>max(dp[0..n-1])</code>，<strong>不是</strong> <code>dp[n-1]</code>——最优子序列未必以最后一个元素结尾。</li>
+  <li><strong>方案回溯</strong>：转移时记录前驱 <code>pre[i] = j</code>，从取到最大值的下标反向走链。</li>
+</ul>
+
+<pre><code>procedure LIS(A[0..n-1]):
+    for i = 0 to n - 1:
+        dp[i] = 1                                 // 边界：只取 A[i] 自己
+        pre[i] = -1
+        for j = 0 to i - 1:
+            if A[j] &lt; A[i] and dp[j] + 1 &gt; dp[i]: // 严格上升：相等不合法
+                dp[i] = dp[j] + 1
+                pre[i] = j                        // 记录前驱，便于回溯
+    best = 0; pos = 0
+    for i = 0 to n - 1:
+        if dp[i] &gt; best: best = dp[i]; pos = i   // 答案是 max，而非 dp[n-1]
+    return best
+
+procedure recover(pos):                           // 方案回溯（逆序得到再反转）
+    while pos != -1:
+        emit A[pos]; pos = pre[pos]</code></pre>
+
+<div class="admonition warning">
+<div class="admonition-title">易错：把 dp[i] 定义成「前 i 个元素的 LIS 长度」</div>
+<p>若定义 <code>dp[i]</code> = 前缀 <code>A[0..i]</code> 的 LIS 长度，则无法写出 <code>dp[i]</code> 与 <code>dp[j]</code> 的转移：前缀的最优子序列<strong>末尾是谁</strong>并不确定，也就无法判断能否再接上 <code>A[i]</code>。例如 <code>A = [2, 9, 1, 5]</code>，前缀 <code>[2,9]</code> 的 LIS 是 <code>2,9</code>（末尾 9），但 <code>9 &gt; 1</code> 无法接上；而长度同为 2 的另一条子序列并不存在。<strong>状态必须携带「末尾元素」这一信息</strong>，所以定义成「以 <code>A[i]</code> 结尾」。代价是答案要在所有 <code>i</code> 上取 <code>max</code>。</p>
+</div>
+
+<h2>可视化演示</h2>
+
+<div class="viz-panel">
+  <div class="viz-stage">
+    <div class="lis-row">
+      <span class="row-label">数组 A</span>
+      <div class="cell-stage" id="rowA"></div>
+    </div>
+    <div class="lis-row">
+      <span class="row-label">dp 值</span>
+      <div class="cell-stage" id="rowDp"></div>
+    </div>
+    <div class="lis-note" id="lisInfo"></div>
+  </div>
+  <div class="viz-msg" id="msg"></div>
+  <div class="viz-legend">
+    <span class="chip"><span class="sw" style="background:#fff;border-style:dashed"></span>dp 尚未填写</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-active)"></span>当前要算的 i</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-comparing)"></span>正在检查的 j / 候选来源</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-default)"></span>已确定的 dp 值</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-done)"></span>刚写入 / 最优方案元素</span>
+  </div>
+  <div id="runner"></div>
+  <div class="viz-controls">
+    <button id="btnRandom" class="viz-btn">🎲 随机新数组</button>
+    <span style="font-size:12.5px;color:var(--md-text-light)">格下方是下标，格上方的蓝色标注是当前 i / 正在检查的 j；数据含重复值以体现「严格上升」。</span>
+  </div>
+</div>
+
+<h2>复杂度分析</h2>
+
+<table>
+  <thead><tr><th>指标</th><th>量级</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td>最优时间复杂度</td><td><code>O(n²)</code></td><td>状态 n 个，每个状态枚举全部 <code>j &lt; i</code>，合计 n(n-1)/2 次判断</td></tr>
+    <tr><td>平均时间复杂度</td><td><code>O(n²)</code></td><td>与数据分布无关，都要扫完所有 <code>j</code></td></tr>
+    <tr><td>最坏时间复杂度</td><td><code>O(n²)</code></td><td>同上；贪心 + 二分优化可到 <code>O(n log n)</code></td></tr>
+    <tr><td>空间复杂度</td><td><code>O(n)</code></td><td><code>dp[]</code> 与 <code>pre[]</code> 各 n 个</td></tr>
+    <tr><td>回溯方案</td><td><code>O(n)</code></td><td>沿 <code>pre[]</code> 走链，长度不超过 n</td></tr>
+  </tbody>
+</table>
+
+<div class="admonition tip">
+<div class="admonition-title">提示：O(n log n) 的贪心 + 二分（耐心排序）</div>
+<p>定义 <code>d[x]</code> = <strong>长度为 x 的上升子序列的最小可能末尾元素</strong>。可以证明 <code>d[]</code> 随 <code>x</code> 严格递增，因此每来一个 <code>A[i]</code>，用二分找到<strong>第一个 ≥ A[i]</strong> 的位置 <code>p</code>，令 <code>d[p] = A[i]</code>（若全部 &lt; <code>A[i]</code> 则追加到末尾，长度 +1）。最终 <code>len(d)</code> 就是 LIS 长度。</p>
+<pre><code>d = []                                  // d[1..len]，len 即当前答案
+for i = 0 to n - 1:
+    p = lowerBound(d, A[i])             // 第一个 d[p] &gt;= A[i] 的位置
+    if p not found: p = len + 1         // 比所有末尾都大 —— 可以延长
+    d[p] = A[i]
+answer = len</code></pre>
+<p>以 <code>A = [2, 5, 3, 7, 1, 6]</code> 为例逐步维护（每行处理一个元素，粗体为本轮被改写的位置）：</p>
+<table class="lis-tbl">
+  <thead><tr><th>处理 x</th><th>d[1..len]（长度 1 / 2 / 3 的最小末尾）</th><th>操作与原因</th></tr></thead>
+  <tbody>
+    <tr><td><code>2</code></td><td><code>[<b>2</b>]</code>，len = 1</td><td>空表，直接建立长度 1 的末尾</td></tr>
+    <tr><td><code>5</code></td><td><code>[2, <b>5</b>]</code>，len = 2</td><td>5 大于所有 d，追加：得到 2, 5</td></tr>
+    <tr><td><code>3</code></td><td><code>[2, <b>3</b>]</code>，len = 2</td><td>第一个 ≥ 3 的是 d[2] = 5，改为 3（长度 2 的末尾更小更优）</td></tr>
+    <tr><td><code>7</code></td><td><code>[2, 3, <b>7</b>]</code>，len = 3</td><td>追加，得到 2, 3, 7</td></tr>
+    <tr><td><code>1</code></td><td><code>[<b>1</b>, 3, 7]</code>，len = 3</td><td>改写 d[1]：长度 1 的末尾只需 1，未来更容易延长</td></tr>
+    <tr><td><code>6</code></td><td><code>[1, 3, <b>6</b>]</code>，len = 3</td><td>改写 d[3]：7 → 6</td></tr>
+  </tbody>
+</table>
+<p>注意 <strong><code>d[]</code> 本身通常不是原序列的子序列</strong>（结束时 <code>[1,3,6]</code> 中 1 出现在 3 之后），但它的<strong>长度</strong>一定等于 LIS 长度：len 只在遇到能延长的元素时才 +1，且长度 k 的上升子序列确实存在（归纳可证）。要输出方案仍需配合下标记录，或用 <code>O(n²)</code> 的 <code>dp[]</code> + 前驱回溯。</p>
+</div>
+
+<h2>应用与局限</h2>
+
+<p>LIS 是<strong>偏序集</strong>上的经典问题：把下标与取值合成二维点对 <code>(i, A[i])</code>，「<code>i &lt; j</code> 且 <code>A[i] &lt; A[j]</code>」就是一个二维偏序关系，LIS 即该偏序集里的<strong>最长链</strong>。由此引出两个重要结论：</p>
+
+<ul>
+  <li><strong>Dilworth 定理</strong>：有限偏序集的最小反链划分数 = 最长链长度。落到序列上，「把序列划分为尽量少的下降子序列」的最少数恰好等于 LIS 长度（这也是「 patience sorting / 耐心排序」的贪心正确性来源）。</li>
+  <li><strong>二维偏序</strong>：把 LIS 的「下标 + 取值」换成任意两维，就得到 <strong>俄罗斯套娃信封</strong>（先按一维排序、再在另一维上求 LIS）、<strong>最多不重叠线段</strong>、<strong>CDQ 分治</strong>与<strong>树状数组优化 DP</strong> 等问题族。当数据范围达到 <code>n ≈ 10⁵~10⁶</code> 时，<code>O(n²)</code> 会超时，必须换成二分或树状数组版本。</li>
+</ul>
+
+<p>局限：LIS 只能处理「一维顺序 + 一维大小」的约束；若子序列还要满足第三种约束（例如颜色交替、和为定值），状态就需要增加维度，退化为 <code>O(n² · 附加维度)</code> 的 DP。此外它<strong>不满足贪心</strong>——每步取最小末尾的朴素贪心并不给出最优解，必须用 <code>d[]</code> 的耐心排序技巧才行。</p>
+
+<div class="admonition info">
+<div class="admonition-title">参考</div>
+<p>DP 基础（含 LIS 与数字三角形）：<a href="https://oi-wiki.org/dp/basic/" target="_blank" rel="noopener">OI Wiki 动态规划基础</a>；序列上的 DP 与相关结论：<a href="https://oi-wiki.org/sequence/" target="_blank" rel="noopener">OI Wiki 序列 DP</a>。Dilworth 定理可参考《组合数学》偏序集一章。</p>
+</div>
+
+</main>
+
+<script src="../assets/nav.js" data-base="../"></script>
+<script src="../assets/viz.js"></script>
+<script>
+(function () {
+  "use strict";
+  var rowA = document.getElementById("rowA");
+  var rowDp = document.getElementById("rowDp");
+  var infoEl = document.getElementById("lisInfo");
+  var steps = [];
+  var runner = null;
+
+  function makeArray(n) {
+    var a = [];
+    for (var i = 0; i < n; i++) a.push(SV.randInt(1, 40));
+    return a;
+  }
+
+  function copyArr(x) { return x.slice(); }
+
+  // 快照：{a, dp(null 未填), pre, cur(i), scan(j), cands[], written(bool), path[], lisLen, msg}
+  function buildSteps(a) {
+    var n = a.length;
+    var out = [];
+    var dp = [], pre = [];
+    var i;
+    for (i = 0; i < n; i++) { dp.push(null); pre.push(null); }
+    var cur = null, scan = null, cands = [], written = false, path = [], lisLen = null;
+
+    function snap(extra) {
+      var s = {
+        a: copyArr(a), dp: copyArr(dp), pre: copyArr(pre),
+        cur: cur, scan: scan, cands: cands.slice(), written: written,
+        path: path.slice(), lisLen: lisLen, msg: ""
+      };
+      for (var k in extra) if (Object.prototype.hasOwnProperty.call(extra, k)) s[k] = extra[k];
+      out.push(s);
+    }
+
+    snap({ msg: "数组 A[0.." + (n - 1) + "] = " + a.join("， ") + "。状态定义：dp[i] = 以 A[i] <b>结尾</b>的最长上升子序列长度。转移：dp[i] = max(dp[j] + 1)，其中 j &lt; i 且 A[j] &lt; A[i]；边界 dp[i] = 1。点击「播放」或「下一步」开始。" });
+
+    for (i = 0; i < n; i++) {
+      cur = i; scan = null; cands = []; written = false;
+      var bestDp = 0, bestJ = -1;
+      if (i === 0) {
+        dp[0] = 1; pre[0] = -1; written = true;
+        snap({ msg: "i = 0：没有 j &lt; 0 可枚举，取边界 dp[0] = <b>1</b>（只含 A[0] = " + a[0] + " 自己）。" });
+        continue;
+      }
+      var candList = [];
+      for (var j = 0; j < i; j++) {
+        scan = j;
+        var ok = a[j] < a[i];
+        if (ok) {
+          cands = [j];
+          candList.push(dp[j]);
+          if (dp[j] > bestDp) { bestDp = dp[j]; bestJ = j; }
+        } else {
+          cands = [];
+        }
+        snap({
+          cands: ok ? [j] : [],
+          msg: "i = " + i + "，检查 j = " + j + "：A[" + j + "] = " + a[j] + (ok ? " &lt; " : (a[j] === a[i] ? " = " : " &gt; ")) + "A[" + i + "] = " + a[i] +
+            (ok ? " —— 满足严格上升，候选 dp[" + j + "] + 1 = " + (dp[j] + 1) + "。" + (j === i - 1 ? "" : " 继续看下一个 j。")
+                 : (a[j] === a[i] ? " —— 不满足（两值相等，LIS 要求<strong>严格</strong>上升），跳过。" : " —— 不满足（A[j] 不小于 A[i]），跳过。"))
+        });
+      }
+      scan = null;
+      dp[i] = bestDp + 1; pre[i] = bestJ;
+      cands = bestJ >= 0 ? [bestJ] : [];
+      written = true;
+      snap({ msg: "dp[" + i + "] = " + (candList.length ? "max(候选 dp 值 {" + candList.join(", ") + "}) + 1 = " + bestDp + " + 1" : "无合法 j，取边界值 1") +
+        " = <b>" + dp[i] + "</b>" + (bestJ >= 0 ? "，前驱 pre[" + i + "] = " + bestJ + "。" : "（A[" + i + "] = " + a[i] + " 比前面所有元素都小或相等，只能自成一段）。") });
+    }
+
+    cur = null; scan = null; cands = []; written = false;
+    var best = 0, pos = 0;
+    for (i = 0; i < n; i++) if (dp[i] > best) { best = dp[i]; pos = i; }
+    lisLen = best;
+    snap({ lisLen: best, msg: "填表结束：dp = " + dp.join("， ") + "。<b>答案位置</b>不是 dp[" + (n - 1) + "]，而是所有 dp 的最大值：LIS 长度 = max = <b>" + best + "</b>（在 i = " + pos + " 即 A[" + pos + "] = " + a[pos] + " 处取得）。下面沿前驱 pre[] 回溯一条方案。" });
+
+    var chain = [];
+    var p = pos;
+    while (p !== -1 && p !== null) { chain.push(p); p = pre[p]; }
+    chain.reverse();
+    for (i = 0; i < chain.length; i++) {
+      path = chain.slice(0, i + 1);
+      lisLen = best;
+      snap({ path: path.slice(), lisLen: best,
+        msg: "回溯第 " + (i + 1) + " 步：" + (i === 0
+          ? "从末尾元素 i = " + chain[0] + "（dp = " + dp[chain[0]] + "）出发"
+          : "dp[" + chain[i] + "] = " + dp[chain[i]] + " 由前驱 pre = " + chain[i - 1] + "（A[" + chain[i - 1] + "] = " + a[chain[i - 1]] + "，dp = " + dp[chain[i - 1]] + "）转移而来") +
+          "。已确定的方案片段（下标）：" + path.join(", ") + "。" });
+    }
+    path = chain.slice();
+    lisLen = best;
+    var vals = [];
+    for (i = 0; i < path.length; i++) vals.push(a[path[i]]);
+    snap({ path: path.slice(), lisLen: best,
+      msg: "LIS 长度 = <b>" + best + "</b> ✅ 一条方案（下标 " + path.join(", ") + "）：" + vals.join(" &lt; ") + "，共 " + vals.length + " 个元素，严格递增且与 dp 值逐级吻合。" });
+    return out;
+  }
+
+  function hasIdx(list, i) {
+    for (var k = 0; k < list.length; k++) if (list[k] === i) return true;
+    return false;
+  }
+
+  function draw(step) {
+    var s = step || steps[0];
+    if (!s) return;
+    var html = "", i;
+    for (i = 0; i < s.a.length; i++) {
+      var cls = "cell";
+      if (hasIdx(s.path, i)) cls += " done";
+      else if (i === s.cur) cls += " active";
+      else if (i === s.scan) cls += " comparing";
+      else if (hasIdx(s.cands, i)) cls += " comparing";
+      var ptr = "";
+      if (i === s.cur) ptr = "i";
+      else if (i === s.scan) ptr = "j";
+      else if (hasIdx(s.cands, i)) ptr = "候选";
+      if (hasIdx(s.path, i)) ptr = "方案";
+      html += '<div class="' + cls + '">' + s.a[i] +
+        (ptr ? '<span class="ptr">' + ptr + "</span>" : "") +
+        '<span class="idx">' + i + "</span></div>";
+    }
+    rowA.innerHTML = html;
+
+    html = "";
+    for (i = 0; i < s.dp.length; i++) {
+      var c = "cell";
+      if (s.dp[i] === null) c += " empty";
+      if (i === s.cur && s.written) c += " done";
+      else if (i === s.cur) c += " active";
+      else if (i === s.scan || hasIdx(s.cands, i)) c += " comparing";
+      html += '<div class="' + c + '">' + (s.dp[i] === null ? "" : s.dp[i]) +
+        (i === s.cur && s.written ? '<span class="ptr">刚写入</span>' : (i === s.cur ? '<span class="ptr">计算中</span>' : "")) +
+        '<span class="idx">' + i + "</span></div>";
+    }
+    rowDp.innerHTML = html;
+
+    var filled = 0;
+    for (i = 0; i < s.dp.length; i++) if (s.dp[i] !== null) filled++;
+    infoEl.innerHTML = "状态：<code>dp[i]</code> = 以 A[i] 结尾的 LIS 长度 ｜ 转移：<code>dp[i] = max(dp[j] + 1)</code>（j &lt; i 且 A[j] &lt; A[i]）｜ 已填 <b>" + filled + " / " + s.dp.length + "</b>" +
+      (s.lisLen === null ? "" : " ｜ 当前 LIS 长度 = <b>" + s.lisLen + "</b>");
+  }
+
+  function restart() {
+    steps = buildSteps(makeArray(10));
+    if (!runner) {
+      runner = SV.runner({
+        host: document.getElementById("runner"),
+        msgEl: document.getElementById("msg"),
+        steps: steps,
+        render: draw
+      });
+    } else {
+      runner.setSteps(steps);
+      draw(null);
+    }
+  }
+
+  document.getElementById("btnRandom").addEventListener("click", restart);
+  restart();
+})();
+</script>
+</body>
+</html>
