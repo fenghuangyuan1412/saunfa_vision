@@ -6,7 +6,7 @@
 (function () {
   "use strict";
 
-  var REPO_URL = "https://github.com/fenghuang1412/saunfa_vision";
+  var REPO_URL = "https://github.com/fenghuangyuan1412/saunfa_vision";
 
   // 全站唯一导航目录。新增算法页必须在此注册，并同步 README.md 的目录表。
   var NAV = [

@@ -4,22 +4,22 @@
 
 站点是**纯静态**的 HTML / CSS / 原生 JavaScript，没有构建步骤：
 
-- 在线访问：<https://fenghuang1412.github.io/saunfa_vision/>
+- 在线访问：<https://fenghuangyuan1412.github.io/saunfa_vision/>
 - 本地使用：下载仓库后直接双击 `index.html` 即可在浏览器中完整运行。
 
 ## 算法可视化直达
 
 | 分类 | 算法 | 在线演示 | 仓库源码 |
 |---|---|---|---|
-| 排序 | 冒泡排序 | <https://fenghuang1412.github.io/saunfa_vision/sorting/bubble-sort.html> | [sorting/bubble-sort.html](sorting/bubble-sort.html) |
-| 排序 | 快速排序 | <https://fenghuang1412.github.io/saunfa_vision/sorting/quick-sort.html> | [sorting/quick-sort.html](sorting/quick-sort.html) |
-| 排序 | 归并排序 | <https://fenghuang1412.github.io/saunfa_vision/sorting/merge-sort.html> | [sorting/merge-sort.html](sorting/merge-sort.html) |
-| 查找 | 二分查找 | <https://fenghuang1412.github.io/saunfa_vision/searching/binary-search.html> | [searching/binary-search.html](searching/binary-search.html) |
-| 数据结构 | 栈 | <https://fenghuang1412.github.io/saunfa_vision/data-structure/stack.html> | [data-structure/stack.html](data-structure/stack.html) |
-| 数据结构 | 链表 | <https://fenghuang1412.github.io/saunfa_vision/data-structure/linked-list.html> | [data-structure/linked-list.html](data-structure/linked-list.html) |
-| 数据结构 | 二叉搜索树 | <https://fenghuang1412.github.io/saunfa_vision/data-structure/bst.html> | [data-structure/bst.html](data-structure/bst.html) |
-| 图论 | 广度优先搜索 | <https://fenghuang1412.github.io/saunfa_vision/graph/bfs.html> | [graph/bfs.html](graph/bfs.html) |
-| 图论 | 深度优先搜索 | <https://fenghuang1412.github.io/saunfa_vision/graph/dfs.html> | [graph/dfs.html](graph/dfs.html) |
+| 排序 | 冒泡排序 | <https://fenghuangyuan1412.github.io/saunfa_vision/sorting/bubble-sort.html> | [sorting/bubble-sort.html](sorting/bubble-sort.html) |
+| 排序 | 快速排序 | <https://fenghuangyuan1412.github.io/saunfa_vision/sorting/quick-sort.html> | [sorting/quick-sort.html](sorting/quick-sort.html) |
+| 排序 | 归并排序 | <https://fenghuangyuan1412.github.io/saunfa_vision/sorting/merge-sort.html> | [sorting/merge-sort.html](sorting/merge-sort.html) |
+| 查找 | 二分查找 | <https://fenghuangyuan1412.github.io/saunfa_vision/searching/binary-search.html> | [searching/binary-search.html](searching/binary-search.html) |
+| 数据结构 | 栈 | <https://fenghuangyuan1412.github.io/saunfa_vision/data-structure/stack.html> | [data-structure/stack.html](data-structure/stack.html) |
+| 数据结构 | 链表 | <https://fenghuangyuan1412.github.io/saunfa_vision/data-structure/linked-list.html> | [data-structure/linked-list.html](data-structure/linked-list.html) |
+| 数据结构 | 二叉搜索树 | <https://fenghuangyuan1412.github.io/saunfa_vision/data-structure/bst.html> | [data-structure/bst.html](data-structure/bst.html) |
+| 图论 | 广度优先搜索 | <https://fenghuangyuan1412.github.io/saunfa_vision/graph/bfs.html> | [graph/bfs.html](graph/bfs.html) |
+| 图论 | 深度优先搜索 | <https://fenghuangyuan1412.github.io/saunfa_vision/graph/dfs.html> | [graph/dfs.html](graph/dfs.html) |
 
 > 提示：GitHub 网页上直接点开 `.html` 源码链接只渲染静态内容、不执行脚本；要看可交互动画请使用上表的「在线演示」链接，或在本地打开文件。
 
