@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>深度优先搜索 - Saunfa Vision</title>
+<link rel="stylesheet" href="../assets/style.css">
+<style>
+.dfs-wrap { display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-start; }
+.maze { display: grid; gap: 3px; }
+.mcell {
+  width: 30px; height: 30px; border-radius: 3px; border: 1px solid rgba(0,0,0,.15);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700; background: var(--viz-default);
+}
+.mcell.comparing { background: var(--viz-comparing); }
+.mcell.active { background: var(--viz-active); color: #fff; }
+.mcell.done { background: var(--viz-done); color: #fff; }
+.mcell.eliminated { background: var(--viz-eliminated); color: rgba(0,0,0,.3); }
+.mcell.path { background: #1b5e20; color: #fff; border: 2px solid #0d3d12; }
+.dfs-side { min-width: 220px; flex: 1; }
+.box-label { font-size: 12.5px; color: var(--md-text-light); font-weight: 700; display: block; margin-bottom: 6px; }
+.tags { display: flex; flex-wrap: wrap; align-content: flex-start; gap: 4px; min-height: 150px; max-height: 300px; overflow-y: auto;
+  background: #fff; border: 1px solid var(--md-border); border-radius: 4px; padding: 8px; }
+.tag {
+  font-size: 11.5px; padding: 2px 7px; border-radius: 10px;
+  background: rgba(64,81,181,.1); color: var(--md-primary); border: 1px solid rgba(64,81,181,.35);
+}
+.tag.top { background: var(--viz-comparing); color: #222; border-color: #e65100; }
+</style>
+</head>
+<body data-page="graph/dfs">
+<main class="sv-content">
+
+<h1>深度优先搜索</h1>
+
+<p><strong>深度优先搜索</strong>（Depth-First Search，DFS）沿着一条路径「一往直前」：进入一个新格子就立刻标记并继续深入，走投无路时<strong>回溯</strong>换方向。它用<strong>递归栈</strong>（或显式栈）实现，与 BFS 的队列恰好相反，因此先找到的路径<strong>未必最短</strong>，但空间更省、写法更简洁。</p>
+
+<h2>算法原理</h2>
+
+<p>维护访问标记 <code>vis[]</code>：约定<strong>进入即标记</strong>（压栈时就置 <code>vis=1</code>），这样每个格子最多被尝试一次。递归框架：进入当前格、压栈；按固定邻居顺序（本页为 <strong>下→右→上→左</strong>）找到第一个未访问的可走邻居就深入；四个方向都走不动时弹栈回溯。用显式栈模拟时行为完全一致，还能避免递归过深的问题。</p>
+
+<pre><code>procedure DFS(u):
+    vis[u] = 1            // 进入即标记，避免重复进入
+    stack.push(u)         // 当前递归路径 = 栈内序列
+    if u = target: 找到一条路径，返回成功
+    for v in neighbors(u) in order 下,右,上,左:
+        if v 合法 且 not vis[v]:
+            if DFS(v): return true   // 通向终点的路径保留在栈中
+    stack.pop()           // 回溯：此路不通，退出当前格
+    return false</code></pre>
+
+<p><strong>DFS 找一条路径 vs BFS 找最短路</strong>：DFS 依赖栈的「后进先出」，钻到第一条触达终点的路径就停，长度可能远超最短；BFS 用队列逐层扩展，第一条触达终点时距离必最短。反过来，DFS 只保存当前路径与递归现场，内存占用通常小于 BFS 的整层队列，且天然适合枚举全部路径、连通分量等需要「深入到底」的任务。</p>
+
+<div class="admonition warning">
+<div class="admonition-title">警告：爆栈风险 与 vis 时机</div>
+<p>① 递归实现 DFS 时栈深等于路径长度，大图 / 长迷宫（如 10^5 级别的深图）可能<strong>爆栈（Stack Overflow）</strong>，竞赛中应改用显式栈迭代，或在评测环境允许时提升栈大小。② <code>vis</code> 必须在<strong>进入（压栈）时</strong>标记而不是弹出时标记：压栈即标记保证每个结点至多入栈一次，复杂度为 O(n+m)；若出栈才标记，同一结点会被反复压入，复杂度与内存都可能爆炸。</p>
+</div>
+
+<h2>可视化演示</h2>
+
+<div class="viz-panel">
+  <div class="viz-stage">
+    <div class="dfs-wrap">
+      <div class="maze" id="maze"></div>
+      <div class="dfs-side">
+        <span class="box-label">调用栈（自底向上，最右为栈顶）</span>
+        <div class="tags" id="stackBox"></div>
+      </div>
+    </div>
+  </div>
+  <div class="viz-msg" id="msg"></div>
+  <div class="viz-legend">
+    <span class="chip"><span class="sw" style="background:var(--viz-comparing)"></span>当前格（栈顶）</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-active)"></span>路径栈中</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-default)"></span>未访问</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-eliminated)"></span>障碍 / 回溯走死</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-done)"></span>找到的路径</span>
+  </div>
+  <div id="runner"></div>
+  <div class="viz-controls">
+    <button id="btnMaze" class="viz-btn">🎲 随机新迷宫</button>
+  </div>
+</div>
+
+<h2>复杂度分析</h2>
+
+<table>
+  <thead><tr><th>指标</th><th>量级</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td>时间复杂度（一般图）</td><td><code>O(n + m)</code></td><td>进入即标记：每个点压栈一次，每条边检查一次</td></tr>
+    <tr><td>时间复杂度（网格）</td><td><code>O(RC)</code></td><td>R×C 格，每格至多 4 个邻居</td></tr>
+    <tr><td>空间复杂度</td><td><code>O(n)</code> / 路径长</td><td>栈内只保存当前路径：迷宫上最坏 O(RC)（即递归深度），通常远小于 BFS 整层队列；另需 O(RC) 的 vis 数组</td></tr>
+    <tr><td>路径质量</td><td colspan="2">找到的是<strong>第一条</strong> DFS 路径，无权图最短路须用 BFS</td></tr>
+  </tbody>
+</table>
+
+<h2>应用与局限</h2>
+
+<p>DFS 是众多图论算法的骨架：求<strong>连通分量</strong>、<strong>拓扑排序</strong>（DFS 逆后序或结合入度）、判环（白灰蓝三色标记）、强连通分量（Tarjan / Kosaraju）、割点割边，以及迷宫<strong>全部路径枚举</strong>与组合搜索（剪枝优化的舞台）。本页演示的「进入即标记 + 回溯弹栈」适合求一条可行路径。局限：无条件深入使它在无权最短路问题上给不出最优解；深图递归有爆栈风险；枚举全部路径时规模可能指数级，需要剪枝。</p>
+
+<div class="admonition info">
+<div class="admonition-title">参考</div>
+<p>Introduction to Algorithms 第 22 章；<a href="https://oi-wiki.org/graph/#图论算法" target="_blank" rel="noopener">OI Wiki 图论算法总览</a>。</p>
+</div>
+
+</main>
+
+<script src="../assets/nav.js" data-base="../"></script>
+<script src="../assets/viz.js"></script>
+<script>
+(function () {
+  var mazeEl = document.getElementById("maze");
+  var stackEl = document.getElementById("stackBox");
+  var runner = null;
+  var steps = [];
+  var DIRS = [[1, 0], [0, 1], [-1, 0], [0, -1]];
+  var DIRNAME = { "1,0": "下", "0,1": "右", "-1,0": "上", "0,-1": "左" };
+  function dirName(dr, dc) { return DIRNAME[dr + "," + dc]; }
+
+  function genMaze() {
+    // S(0,0) 与 T(R-1,C-1) 之间必须连通，否则重生成；同时要求步数不超长
+    var best = null;
+    for (var attempt = 1; attempt <= 400; attempt++) {
+      var Rn = SV.randInt(8, 9), Cn = SV.randInt(8, 9);
+      var wall = [], r, c;
+      for (r = 0; r < Rn; r++) {
+        wall[r] = [];
+        for (c = 0; c < Cn; c++) wall[r][c] = Math.random() < 0.3 ? 1 : 0;
+      }
+      wall[0][0] = 0;
+      wall[Rn - 1][Cn - 1] = 0;
+      if (!connected(wall, Rn, Cn)) continue;
+      var trial = buildSteps(wall, Rn, Cn);
+      if (trial && trial.length <= 200) return { wall: wall, R: Rn, C: Cn, steps: trial };
+      if (trial && (!best || trial.length < best.steps.length)) best = { wall: wall, R: Rn, C: Cn, steps: trial };
+    }
+    if (best) return best;
+    // 兜底：无障碍直线迷宫一定连通且步数很小
+    var w0 = [], rr, cc;
+    for (rr = 0; rr < 8; rr++) { w0[rr] = []; for (cc = 0; cc < 8; cc++) w0[rr][cc] = 0; }
+    return { wall: w0, R: 8, C: 8, steps: buildSteps(w0, 8, 8) };
+  }
+
+  function connected(wall, Rn, Cn) {
+    var vis = [], r, c, q = [[0, 0]];
+    for (r = 0; r < Rn; r++) { vis[r] = []; for (c = 0; c < Cn; c++) vis[r][c] = 0; }
+    vis[0][0] = 1;
+    while (q.length) {
+      var u = q.shift(), ur = u[0], uc = u[1];
+      if (ur === Rn - 1 && uc === Cn - 1) return true;
+      for (var d = 0; d < 4; d++) {
+        var nr = ur + DIRS[d][0], nc = uc + DIRS[d][1];
+        if (nr < 0 || nr >= Rn || nc < 0 || nc >= Cn || wall[nr][nc] || vis[nr][nc]) continue;
+        vis[nr][nc] = 1;
+        q.push([nr, nc]);
+      }
+    }
+    return false;
+  }
+
+  function bfsDist(wall, Rn, Cn) {
+    var dis = [], r, c, q = [[0, 0]];
+    for (r = 0; r < Rn; r++) { dis[r] = []; for (c = 0; c < Cn; c++) dis[r][c] = -1; }
+    dis[0][0] = 0;
+    while (q.length) {
+      var u = q.shift(), ur = u[0], uc = u[1];
+      for (var d = 0; d < 4; d++) {
+        var nr = ur + DIRS[d][0], nc = uc + DIRS[d][1];
+        if (nr < 0 || nr >= Rn || nc < 0 || nc >= Cn || wall[nr][nc] || dis[nr][nc] !== -1) continue;
+        dis[nr][nc] = dis[ur][uc] + 1;
+        q.push([nr, nc]);
+      }
+    }
+    return dis[Rn - 1][Cn - 1];
+  }
+
+  function buildSteps(wall, Rn, Cn) {
+    var out = [];
+    var st = [], lb = [], vis = [], r, c, i;
+    for (r = 0; r < Rn; r++) {
+      st[r] = []; lb[r] = []; vis[r] = [];
+      for (c = 0; c < Cn; c++) {
+        st[r][c] = wall[r][c] ? "eliminated" : "default";
+        lb[r][c] = "";
+        vis[r][c] = 0;
+      }
+    }
+    st[0][0] = "comparing";
+    lb[0][0] = "S";
+    lb[Rn - 1][Cn - 1] = "T";
+    var stack = [{ r: 0, c: 0, child: 0 }];
+    vis[0][0] = 1;
+
+    function snap(msg) {
+      var sst = [], slb = [], k;
+      for (var a = 0; a < Rn; a++) { sst[a] = st[a].slice(); slb[a] = lb[a].slice(); }
+      var stk = [];
+      for (k = 0; k < stack.length; k++) stk.push(stack[k].r + "," + stack[k].c);
+      out.push({ st: sst, lb: slb, stk: stk, msg: msg });
+    }
+
+    snap("迷宫 " + Rn + "×" + Cn + "：起点 S=(0,0)，终点 T=(" + (Rn - 1) + "," + (Cn - 1) +
+      ")。进入起点即标记 vis，压入调用栈。坐标格式 (行,列)。");
+
+    var found = false;
+    while (stack.length) {
+      var top = stack[stack.length - 1];
+      var tr = top.r, tc = top.c;
+      if (tr === Rn - 1 && tc === Cn - 1) { found = true; break; }
+      // 按 下→右→上→左 找第一个未访问可走邻居
+      var nextIdx = -1, why = [];
+      for (i = 0; i < 4; i++) {
+        var nr = tr + DIRS[i][0], nc = tc + DIRS[i][1];
+        var nm = "(" + nr + "," + nc + ")";
+        if (nr < 0 || nr >= Rn || nc < 0 || nc >= Cn) { why.push(nm + " 越界"); continue; }
+        if (wall[nr][nc]) { why.push(nm + " 是障碍墙"); continue; }
+        if (vis[nr][nc]) { why.push(nm + " 已访问"); continue; }
+        nextIdx = i;
+        break;
+      }
+      if (nextIdx >= 0) {
+        var brr = tr + DIRS[nextIdx][0], brc = tc + DIRS[nextIdx][1];
+        top.child = 1;                    // 记为「曾从此深入」
+        st[tr][tc] = "active";            // 父格退回路径栈（蓝）
+        vis[brr][brc] = 1;                // 进入即标记
+        st[brr][brc] = "comparing";
+        stack.push({ r: brr, c: brc, child: 0 });
+        var pushed = lb[brr][brc] === "T";
+        if (!pushed) lb[brr][brc] = "";
+        snap("从 (" + tr + "," + tc + ") 向" + dirName(DIRS[nextIdx][0], DIRS[nextIdx][1]) +
+          "深入：进入 (" + brr + "," + brc + ")，进入即标记 vis 并压栈" + (pushed ? "（这是终点 T！）" : "") +
+          "。栈深 " + stack.length + "。跳过理由：" + (why.length ? why.join("；") : "无") + "。");
+      } else {
+        // 回溯弹栈：曾深入过的格恢复为基态 default；彻底走死的死角格标灰 eliminated
+        top.child ? (st[tr][tc] = "default") : (st[tr][tc] = "eliminated");
+        if (tr === 0 && tc === 0) lb[tr][tc] = "S"; else lb[tr][tc] = "";
+        stack.pop();
+        var nt = stack.length ? stack[stack.length - 1] : null;
+        var kindTxt = top.child ? "它曾向外深入但子路全部失败，颜色恢复为未访问基态" :
+          "四个方向全部越界、撞墙或已访问，是走死的死角，标灰";
+        if (nt) {
+          st[nt.r][nt.c] = "comparing";
+          snap("回溯：弹出 (" + tr + "," + tc + ")，" + kindTxt + "。返回上层 (" +
+            nt.r + "," + nt.c + ") 继续探索。栈深 " + stack.length + "。");
+        } else {
+          snap("回溯：弹出 (" + tr + "," + tc + ")，" + kindTxt + "。调用栈已空，全图探索完毕，终点不可达（连通性检查下不应发生）。栈深 0。");
+        }
+      }
+    }
+
+    if (!found) return out;
+
+    var d0 = stack.length - 1;
+    var bd = bfsDist(wall, Rn, Cn);
+    var note = bd === d0 ? "本例中它恰好也是最短距离 " + bd + " 步。" :
+      "注意：BFS 的最短距离为 " + bd + " 步，DFS 这条路径<strong>未必最短</strong>。";
+    for (i = 0; i < stack.length; i++) {
+      st[stack[i].r][stack[i].c] = "done";
+      lb[stack[i].r][stack[i].c] = i === 0 ? "S" : (i === stack.length - 1 ? "T" : String(i));
+    }
+    snap("到达终点 ✅ DFS 找到一条 S→T 路径（绿色，格中标注步数）：长 " + d0 + " 步，经过 " +
+      stack.length + " 个格，即当前调用栈本身。" + note);
+    return out;
+  }
+
+  function restart() {
+    var maze = genMaze();
+    steps = maze.steps;
+    if (!runner) {
+      runner = SV.runner({
+        host: document.getElementById("runner"),
+        msgEl: document.getElementById("msg"),
+        steps: steps,
+        render: draw
+      });
+    } else {
+      runner.setSteps(steps);
+      draw(null);
+    }
+  }
+
+  function draw(step) {
+    var s = step || steps[0];
+    if (!s) return;
+    var rows = s.st.length, cols = s.st[0].length;
+    mazeEl.style.gridTemplateColumns = "repeat(" + cols + ", 30px)";
+    var html = "";
+    for (var r = 0; r < rows; r++) {
+      for (var c = 0; c < cols; c++) {
+        html += '<div class="mcell ' + s.st[r][c] + '">' + s.lb[r][c] + "</div>";
+      }
+    }
+    mazeEl.innerHTML = html;
+    var sh = "";
+    for (var i = 0; i < s.stk.length; i++) {
+      sh += '<span class="tag' + (i === s.stk.length - 1 ? " top" : "") + '">' + s.stk[i] + "</span>";
+    }
+    if (!s.stk.length) sh = '<span style="font-size:12px;color:#999">（调用栈已空）</span>';
+    stackEl.innerHTML = sh;
+  }
+
+  document.getElementById("btnMaze").addEventListener("click", restart);
+  restart();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Saunfa Vision - 算法可视化教程</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-page="home">
+<main class="sv-content">
+
+<h1>Saunfa Vision</h1>
+
+<p><strong>Saunfa Vision</strong> 是一个仿 <a href="https://oi-wiki.org" target="_blank" rel="noopener">OI-wiki</a> 风格的开源算法讲解站点，面向 OI / ACM 学习者与算法入门者。每个算法一页，包含文字讲解、伪代码、<strong>可交互的分步可视化演示</strong>与复杂度分析。站点是纯静态页面，双击任意 HTML 即可在本地运行。</p>
+
+<div class="admonition info">
+<div class="admonition-title">使用方式</div>
+<p>进入任意算法页后，在「可视化演示」面板点击 <b>▶ 播放</b> 自动演示，或用 <b>下一步 / 上一步</b> 逐帧研究；速度可调节，页面右侧（或底部）的说明行会给出每一步的具体含义。</p>
+</div>
+
+<h2>排序算法</h2>
+<div class="card-grid">
+  <a class="card" href="sorting/bubble-sort.html"><div class="card-title">冒泡排序</div><div class="card-desc">相邻比较与交换，O(n²) 稳定排序，提前退出优化。</div></a>
+  <a class="card" href="sorting/quick-sort.html"><div class="card-title">快速排序</div><div class="card-desc">Lomuto 分区递归，平均 O(n log n) 的不稳定原地排序。</div></a>
+  <a class="card" href="sorting/merge-sort.html"><div class="card-title">归并排序</div><div class="card-desc">分治合并，稳定的 O(n log n) 排序，需 O(n) 辅助空间。</div></a>
+</div>
+
+<h2>查找算法</h2>
+<div class="card-grid">
+  <a class="card" href="searching/binary-search.html"><div class="card-title">二分查找</div><div class="card-desc">有序数组上 O(log n) 折半定位，含边界收缩与防溢出写法。</div></a>
+</div>
+
+<h2>数据结构</h2>
+<div class="card-grid">
+  <a class="card" href="data-structure/stack.html"><div class="card-title">栈</div><div class="card-desc">LIFO 结构动手实验：入栈、出栈、括号匹配与递归的关系。</div></a>
+  <a class="card" href="data-structure/linked-list.html"><div class="card-title">链表</div><div class="card-desc">单链表头/尾/按位插删与遍历动画，哨兵节点技巧。</div></a>
+  <a class="card" href="data-structure/bst.html"><div class="card-title">二叉搜索树</div><div class="card-desc">插入与查找路径可视化，三种 DFS 遍历与退化问题。</div></a>
+</div>
+
+<h2>图论基础</h2>
+<div class="card-grid">
+  <a class="card" href="graph/bfs.html"><div class="card-title">广度优先搜索</div><div class="card-desc">队列逐层扩展，网格迷宫求无权最短路，队列实时可见。</div></a>
+  <a class="card" href="graph/dfs.html"><div class="card-title">深度优先搜索</div><div class="card-desc">一路走到底再回溯，调用栈实时可见，理解与 BFS 的差异。</div></a>
+</div>
+
+<h2>关于本站</h2>
+<p>站点无构建依赖：全部内容由原生 HTML / CSS / JavaScript 编写，可视化基于统一的「预计算步骤快照 + 步骤播放器」机制（见 <code>assets/viz.js</code>）。源码仓库与开发规范见：</p>
+<ul>
+  <li><a href="https://github.com/fenghuang1412/saunfa_vision" target="_blank" rel="noopener">GitHub 仓库</a></li>
+  <li><a href="AGENTS.md">AGENTS.md —— 站点开发规范（新增算法必读）</a></li>
+  <li><a href="README.md">README.md —— 全部可视化页面直达链接</a></li>
+</ul>
+
+</main>
+
+<script src="assets/nav.js" data-base="."></script>
+</body>
+</html>

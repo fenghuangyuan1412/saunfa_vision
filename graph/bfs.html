@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>广度优先搜索 - Saunfa Vision</title>
+<link rel="stylesheet" href="../assets/style.css">
+<style>
+.bfs-wrap { display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-start; }
+.maze { display: grid; gap: 3px; }
+.mcell {
+  width: 30px; height: 30px; border-radius: 3px; border: 1px solid rgba(0,0,0,.15);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700; background: var(--viz-default);
+}
+.mcell.comparing { background: var(--viz-comparing); }
+.mcell.active { background: var(--viz-active); color: #fff; }
+.mcell.done { background: var(--viz-done); color: #fff; }
+.mcell.eliminated { background: var(--viz-eliminated); color: rgba(0,0,0,.3); }
+.mcell.start { background: var(--viz-active); color: #fff; }
+.mcell.path { background: #1b5e20; color: #fff; border: 2px solid #0d3d12; }
+.bfs-side { min-width: 220px; flex: 1; }
+.box-label { font-size: 12.5px; color: var(--md-text-light); font-weight: 700; display: block; margin-bottom: 6px; }
+.tags { display: flex; flex-wrap: wrap; gap: 4px; min-height: 150px; max-height: 300px; overflow-y: auto;
+  background: #fff; border: 1px solid var(--md-border); border-radius: 4px; padding: 8px; }
+.tag {
+  font-size: 11.5px; padding: 2px 7px; border-radius: 10px;
+  background: rgba(64,81,181,.1); color: var(--md-primary); border: 1px solid rgba(64,81,181,.35);
+}
+.tag.head { background: var(--viz-active); color: #fff; }
+</style>
+</head>
+<body data-page="graph/bfs">
+<main class="sv-content">
+
+<h1>广度优先搜索</h1>
+
+<p><strong>广度优先搜索</strong>（Breadth-First Search，BFS）从源点出发，借助<strong>队列</strong>逐层扩展：先访问距离为 <code>d</code> 的所有结点，才可能访问距离为 <code>d+1</code> 的结点。这一「层层推进」的性质使 BFS 在<strong>无权图</strong>上天然求出最短路。</p>
+
+<h2>算法原理</h2>
+
+<p>维护距离数组 <code>dis[]</code>：源点 <code>dis=0</code>，其余初始为 <code>-1</code>（未访问）。把源点入队并标记；每次<strong>出队</strong>一个格子，检查它的四个邻居：越界或障碍跳过，已访问（<code>dis != -1</code>）跳过，否则令 <code>dis[邻居] = dis[当前] + 1</code> 并入队。每个结点恰好入队一次、出队一次。</p>
+
+<pre><code>procedure BFS(s):
+    for v in all cells: dis[v] = -1
+    queue.clear()
+    dis[s] = 0; queue.push(s)
+    while queue not empty:
+        u = queue.pop()               // 队头出队
+        for v in neighbors(u):        // 下、右、上、左
+            if v 越界 或 是障碍: continue
+            if dis[v] != -1: continue  // 已进入过队列
+            dis[v] = dis[u] + 1
+            prev[v] = u                // 记录前驱，便于还原路径
+            queue.push(v)</code></pre>
+
+<p><strong>最短路性质</strong>：在无权图（网格中相邻即有边）上，BFS 首次把某结点加入队列时的 <code>dis</code> 值必为源点到它的最短距离。因为队列按距离非递减出队，任何更短的路径都会在更早的层被发现。</p>
+
+<div class="admonition tip">
+<div class="admonition-title">提示：无权图最短路 与 多源 BFS</div>
+<p>① 求<strong>无权图</strong>单源最短路首选 BFS，<code>dis[T]</code> 即 S 到 T 的最短距离，沿 <code>prev[]</code> 回溯得到一条最短路径。② 把所有源点在开始时<strong>全部入队</strong>（<code>dis</code> 均置 0），就得到<strong>多源 BFS</strong>：仍然逐层扩展，求出的是「任一源点」到每个结点的最短距离，常用于多起点扩散、火源蔓延、01-棋盘距最近特殊格距离等问题。</p>
+</div>
+
+<h2>可视化演示</h2>
+
+<div class="viz-panel">
+  <div class="viz-stage">
+    <div class="bfs-wrap">
+      <div class="maze" id="maze"></div>
+      <div class="bfs-side">
+        <span class="box-label">队列（左端为队头，出队方向）</span>
+        <div class="tags" id="queueBox"></div>
+      </div>
+    </div>
+  </div>
+  <div class="viz-msg" id="msg"></div>
+  <div class="viz-legend">
+    <span class="chip"><span class="sw" style="background:var(--viz-active)"></span>起点 S</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-default)"></span>未访问</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-comparing)"></span>出队扩展中</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-done)"></span>已访问（绿，带距离）</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-eliminated)"></span>障碍墙</span>
+    <span class="chip"><span class="sw" style="background:#1b5e20"></span>最短路径</span>
+  </div>
+  <div id="runner"></div>
+  <div class="viz-controls">
+    <button id="btnMaze" class="viz-btn">🎲 随机新迷宫</button>
+  </div>
+</div>
+
+<h2>复杂度分析</h2>
+
+<table>
+  <thead><tr><th>指标</th><th>量级</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td>时间复杂度（一般图）</td><td><code>O(n + m)</code></td><td>n 个结点、m 条边：每个点入队一次，每条边检查一次</td></tr>
+    <tr><td>时间复杂度（网格）</td><td><code>O(RC)</code></td><td>R×C 格，每格至多 4 个邻居，等价 O(点数+边数)</td></tr>
+    <tr><td>空间复杂度</td><td><code>O(n + m)</code></td><td>dis[]/prev[] 为 O(n)；队列最宽约一层结点数，网格上为 <code>O(min(R, C))</code> 量级，图上界 O(n)</td></tr>
+    <tr><td>正确性</td><td colspan="2">仅适用于<strong>无权图</strong>（或边权相同）；带权图需用 Dijkstra 等算法</td></tr>
+  </tbody>
+</table>
+
+<h2>应用与局限</h2>
+
+<p>BFS 是迷宫最短路、连通分量划分、<strong>Flood fill</strong>（洪水填充，图像区域着色、扫雷展开）、拼图类（华容道、八数码，配合双向 BFS / BFS 全图预处理）等问题的标准工具，也是许多图论算法（如无权最短路、分层图）的骨架。局限：只适合无权（单位权）图；带负权或一般边权需 Dijkstra / SPFA；全图 BFS 需要存储整张图与队列，超大隐式状态空间时要配合哈希或双向搜索。</p>
+
+<div class="admonition info">
+<div class="admonition-title">参考</div>
+<p>Introduction to Algorithms 第 22 章；<a href="https://oi-wiki.org/graph/#图论算法" target="_blank" rel="noopener">OI Wiki 图论算法总览</a>。</p>
+</div>
+
+</main>
+
+<script src="../assets/nav.js" data-base="../"></script>
+<script src="../assets/viz.js"></script>
+<script>
+(function () {
+  var mazeEl = document.getElementById("maze");
+  var queueEl = document.getElementById("queueBox");
+  var runner = null;
+  var steps = [];
+  var R = 9, C = 9;
+  var DIRS = [[1, 0], [0, 1], [-1, 0], [0, -1]];
+  var DIRNAME = { "1,0": "下", "0,1": "右", "-1,0": "上", "0,-1": "左" };
+  function dirName(dr, dc) { return DIRNAME[dr + "," + dc]; }
+
+  function genMaze() {
+    // 尝试生成带障碍且 S(0,0) 到 T(R-1,C-1) 连通的迷宫；不可达就重生成
+    for (var attempt = 1; attempt <= 300; attempt++) {
+      var Rn = SV.randInt(8, 10), Cn = SV.randInt(8, 10);
+      var wall = [];
+      var r, c;
+      for (r = 0; r < Rn; r++) {
+        wall[r] = [];
+        for (c = 0; c < Cn; c++) wall[r][c] = Math.random() < 0.2 ? 1 : 0;
+      }
+      wall[0][0] = 0;
+      wall[Rn - 1][Cn - 1] = 0;
+      if (connected(wall, Rn, Cn)) return { wall: wall, R: Rn, C: Cn };
+    }
+    // 兜底：随机迷宫始终不连通（几乎不可能走到这里），清空一条单调路径
+    var w2 = [];
+    for (r = 0; r < R; r++) { w2[r] = []; for (c = 0; c < C; c++) w2[r][c] = Math.random() < 0.2 ? 1 : 0; }
+    var pr = 0, pc = 0;
+    w2[0][0] = 0;
+    while (pr < R - 1 || pc < C - 1) {
+      if (pr === R - 1) pc++; else if (pc === C - 1) pr++;
+      else if (Math.random() < 0.5) pr++; else pc++;
+      w2[pr][pc] = 0;
+    }
+    return { wall: w2, R: R, C: C };
+  }
+
+  function connected(wall, Rn, Cn) {
+    var vis = [], r, c, q = [[0, 0]];
+    for (r = 0; r < Rn; r++) { vis[r] = []; for (c = 0; c < Cn; c++) vis[r][c] = 0; }
+    vis[0][0] = 1;
+    while (q.length) {
+      var u = q.shift(), ur = u[0], uc = u[1];
+      if (ur === Rn - 1 && uc === Cn - 1) return true;
+      for (var d = 0; d < 4; d++) {
+        var nr = ur + DIRS[d][0], nc = uc + DIRS[d][1];
+        if (nr < 0 || nr >= Rn || nc < 0 || nc >= Cn || wall[nr][nc] || vis[nr][nc]) continue;
+        vis[nr][nc] = 1;
+        q.push([nr, nc]);
+      }
+    }
+    return false;
+  }
+
+  function buildSteps(maze) {
+    var wall = maze.wall, Rn = maze.R, Cn = maze.C;
+    var out = [];
+    var st = [], lb = [], dis = [], prev = [], q = [];
+    var r, c, i;
+    for (r = 0; r < Rn; r++) {
+      st[r] = []; lb[r] = []; dis[r] = []; prev[r] = [];
+      for (c = 0; c < Cn; c++) {
+        st[r][c] = wall[r][c] ? "eliminated" : "default";
+        lb[r][c] = "";
+        dis[r][c] = -1;
+        prev[r][c] = null;
+      }
+    }
+    st[0][0] = "start"; lb[0][0] = "S"; dis[0][0] = 0;
+    lb[Rn - 1][Cn - 1] = "T";
+
+    function snap(msg, qArr) {
+      var sst = [], slb = [];
+      for (var a = 0; a < Rn; a++) { sst[a] = st[a].slice(); slb[a] = lb[a].slice(); }
+      out.push({ st: sst, lb: slb, q: (qArr || q).slice(), msg: msg });
+    }
+
+    q.push("0,0");
+    snap("迷宫 " + Rn + "×" + Cn + "：起点 S=(0,0)，终点 T=(" + (Rn - 1) + "," + (Cn - 1) +
+      ")，灰色为障碍墙。S 入队，dis=0。坐标格式为 (行,列)。", q);
+
+    var checked = 0, enqueued = 0;
+    while (q.length) {
+      var head = q.shift();
+      var hp = head.split(",");
+      var hr = Number(hp[0]), hc = Number(hp[1]);
+      if (hr === Rn - 1 && hc === Cn - 1) {
+        st[hr][hc] = "done";
+        snap("出队 (" + hr + "," + hc + ")，正是终点 T，dis=" + dis[hr][hc] +
+          "。BFS 出队顺序按距离非递减，终点的最短距离已确定。", q);
+        break;
+      }
+      st[hr][hc] = "comparing";
+      snap("出队 (" + hr + "," + hc + ")，距离 " + dis[hr][hc] +
+        "；按 下→右→上→左 顺序检查它的 4 个邻居。当前队列剩 " + q.length + " 项。", q);
+      var stop = false;
+      for (i = 0; i < 4; i++) {
+        var nr = hr + DIRS[i][0], nc = hc + DIRS[i][1];
+        var nm = "(" + nr + "," + nc + ")";
+        if (nr < 0 || nr >= Rn || nc < 0 || nc >= Cn) {
+          snap("检查邻居 " + nm + "（" + dirName(DIRS[i][0], DIRS[i][1]) + "方）：越界，跳过。", q);
+          continue;
+        }
+        checked++;
+        if (wall[nr][nc]) {
+          snap("检查邻居 " + nm + "（" + dirName(DIRS[i][0], DIRS[i][1]) + "方）：障碍墙，跳过。", q);
+          continue;
+        }
+        if (dis[nr][nc] !== -1) {
+          snap("检查邻居 " + nm + "（" + dirName(DIRS[i][0], DIRS[i][1]) + "方）：已访问（dis=" +
+            dis[nr][nc] + "），跳过。", q);
+          continue;
+        }
+        dis[nr][nc] = dis[hr][hc] + 1;
+        prev[nr][nc] = [hr, hc];
+        st[nr][nc] = "done";
+        lb[nr][nc] = String(dis[nr][nc]);
+        q.push(nr + "," + nc);
+        enqueued++;
+        if (nr === Rn - 1 && nc === Cn - 1) {
+          snap("邻居 " + nm + "（" + dirName(DIRS[i][0], DIRS[i][1]) + "方）：可行且未访问，入队 dis=" +
+            dis[nr][nc] + "——这正是终点 T！BFS 逐层扩展，首次触及终点的距离必为最短距离。搜索结束。", q);
+          stop = true;
+          break;
+        }
+        snap("邻居 " + nm + "（" + dirName(DIRS[i][0], DIRS[i][1]) + "方）：可行且未访问，入队 dis=" +
+          dis[nr][nc] + "。当前队列长度 " + q.length + "。", q);
+      }
+      st[hr][hc] = "done";
+      if (stop) break;
+    }
+
+    // 回溯最短路径
+    var path = [];
+    var cur = [Rn - 1, Cn - 1];
+    while (cur) { path.push(cur); cur = prev[cur[0]][cur[1]]; }
+    path.reverse();
+    for (i = 0; i < path.length; i++) {
+      st[path[i][0]][path[i][1]] = "path";
+      lb[path[i][0]][path[i][1]] = i === 0 ? "S" : String(i);
+    }
+    snap("找到终点 ✅ S→T 最短距离 = " + (path.length - 1) + " 步（深绿加粗为一条最短路径，格中标注距起点的距离）。" +
+      "共扩展 " + enqueued + " 个新格、检查 " + checked + " 次邻居。", []);
+    return out;
+  }
+
+  function draw(step) {
+    var s = step || steps[0];
+    if (!s) return;
+    var rows = s.st.length, cols = s.st[0].length;
+    mazeEl.style.gridTemplateColumns = "repeat(" + cols + ", 30px)";
+    var html = "";
+    for (var r = 0; r < rows; r++) {
+      for (var c = 0; c < cols; c++) {
+        html += '<div class="mcell ' + s.st[r][c] + '">' + s.lb[r][c] + "</div>";
+      }
+    }
+    mazeEl.innerHTML = html;
+    var qh = "";
+    for (var i = 0; i < s.q.length; i++) {
+      qh += '<span class="tag' + (i === 0 ? " head" : "") + '">' + s.q[i] + "</span>";
+    }
+    if (!s.q.length) qh = '<span style="font-size:12px;color:#999">（队列已空）</span>';
+    queueEl.innerHTML = qh;
+  }
+
+  function restart() {
+    var maze = genMaze();
+    R = maze.R; C = maze.C;
+    steps = buildSteps(maze);
+    if (!runner) {
+      runner = SV.runner({
+        host: document.getElementById("runner"),
+        msgEl: document.getElementById("msg"),
+        steps: steps,
+        render: draw
+      });
+    } else {
+      runner.setSteps(steps);
+      draw(null);
+    }
+  }
+
+  document.getElementById("btnMaze").addEventListener("click", restart);
+  restart();
+})();
+</script>
+</body>
+</html>

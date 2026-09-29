@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>快速排序 - Saunfa Vision</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body data-page="sorting/quick-sort">
+<main class="sv-content">
+
+<h1>快速排序</h1>
+
+<p><strong>快速排序</strong>（Quick Sort）是一种基于<strong>分治</strong>思想的比较排序算法。它从区间中选取一个元素作为<strong>枢轴</strong>（pivot），把区间划分为「不大于枢轴」与「大于枢轴」两部分，然后对两部分递归地执行同样的操作。因为划分是<strong>原地</strong>完成的，且访问模式对缓存友好，快速排序是实践中最常用的通用排序算法之一。</p>
+
+<h2>算法原理</h2>
+
+<p>本页采用经典的 <strong>Lomuto 分区</strong>方案：取区间最右元素 <code>A[hi]</code> 作为枢轴，用两个指针维护不变量。</p>
+
+<ul>
+  <li>不变量：<code>A[lo .. i]</code> 全部 <code>&le; pivot</code>，<code>A[i+1 .. j-1]</code> 全部 <code>&gt; pivot</code>，<code>A[hi]</code> 是暂存的枢轴。</li>
+  <li>扫描指针 <code>j</code> 从 <code>lo</code> 走到 <code>hi-1</code>：若 <code>A[j] &le; pivot</code>，先令 <code>i</code> 前进，再交换 <code>A[i]</code> 与 <code>A[j]</code>，把小元素并入左侧区；否则什么也不做，<code>j</code> 继续右移。</li>
+  <li>扫描结束后，<code>A[i+1]</code> 就是左侧区之后第一个大于枢轴的位置，交换 <code>A[i+1]</code> 与 <code>A[hi]</code>，枢轴即落在<strong>最终位置</strong> <code>p = i+1</code> 上。</li>
+  <li>对 <code>[lo, p-1]</code> 与 <code>[p+1, hi]</code> 递归排序；区间长度不超过 1 时递归终止。</li>
+</ul>
+
+<pre><code>procedure quickSort(A, lo, hi):     // 对 A[lo..hi] 排序
+    if lo &lt; hi:
+        p = partition(A, lo, hi)        // Lomuto 分区，返回枢轴最终位置
+        quickSort(A, lo, p - 1)         // 递归排序左半
+        quickSort(A, p + 1, hi)         // 递归排序右半
+
+procedure partition(A, lo, hi):
+    pivot = A[hi]                   // 取区间最右元素为枢轴
+    i = lo - 1                      // A[lo..i] 恒 &lt;= pivot
+    for j = lo to hi - 1:
+        if A[j] &lt;= pivot:
+            i = i + 1
+            swap(A[i], A[j])        // 把小元素换进左侧区
+    swap(A[i + 1], A[hi])           // 枢轴归位
+    return i + 1</code></pre>
+
+<div class="admonition example">
+<div class="admonition-title">一次分区示例</div>
+<p>区间 <code>[2, 9]</code>，枢轴 <code>pivot = A[9] = 45</code>。扫描中若 <code>A[5] = 62</code>，因为 <code>62 &gt; 45</code>，不交换，<code>j</code> 直接右移；若 <code>A[7] = 30</code>，因为 <code>30 &le; 45</code>，<code>i</code> 前进后交换 <code>A[i]</code> 与 <code>A[7]</code>。扫描完成后把 <code>A[i+1]</code> 与 <code>A[9]</code> 交换，<code>45</code> 就位，其左侧都不大于它、右侧都严格大于它。</p>
+</div>
+
+<h2>可视化演示</h2>
+
+<div class="viz-panel">
+  <div class="viz-stage"><div class="bar-stage" id="bars" style="margin-bottom:46px"></div></div>
+  <div class="viz-msg" id="msg"></div>
+  <div class="viz-legend">
+    <span class="chip"><span class="sw" style="background:var(--viz-default)"></span>未就位（在当前区间内）</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-active)"></span>枢轴 pivot</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-comparing)"></span>正在比较</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-swapping)"></span>发生交换</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-done)"></span>已就位</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-default);opacity:.25"></span>淡化＝不在当前递归区间</span>
+  </div>
+  <div id="runner"></div>
+  <div class="viz-controls">
+    <button id="btnRandom" class="viz-btn">🎲 随机新数组</button>
+    <span style="font-size:12.5px;color:var(--md-text-light)">条形下方的蓝色标注为当前指针（pivot / i / j / p）。</span>
+  </div>
+</div>
+
+<h2>复杂度分析</h2>
+
+<table>
+  <thead><tr><th>指标</th><th>量级</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td>最优时间复杂度</td><td><code>O(n log n)</code></td><td>每次划分都接近对半分，递归树共 log n 层，每层合计 O(n)</td></tr>
+    <tr><td>平均时间复杂度</td><td><code>O(n log n)</code></td><td>期望约 1.39 n log n 次比较，常数因子小、缓存友好</td></tr>
+    <tr><td>最坏时间复杂度</td><td><code>O(n²)</code></td><td>触发条件：每次枢轴都取到端序（区间已有序或逆序、大量重复元素且固定取最右），划分为 n 与 0，递归退化为 n 层，每层扫描 O(n)</td></tr>
+    <tr><td>空间复杂度</td><td><code>O(log n)</code></td><td>原地排序，仅需递归调用栈，期望深度 O(log n)；最坏退化时递归栈为 O(n)</td></tr>
+    <tr><td>稳定性</td><td>不稳定</td><td>枢轴归位的远距离交换会打乱相等元素的相对顺序</td></tr>
+  </tbody>
+</table>
+
+<div class="admonition warning">
+<div class="admonition-title">警告：最坏情况与随机化优化</div>
+<p>本页演示固定取 <code>A[hi]</code> 为枢轴，面对<strong>已经有序</strong>或<strong>近似有序</strong>的数据会退化为 <code>O(n²)</code>，递归深度也会达到 <code>O(n)</code>，在极端数据下可能爆栈。常见对策：</p>
+<ul>
+  <li><strong>随机选枢轴</strong>：随机取 <code>A[k]</code> 并与 <code>A[hi]</code> 交换后照常分区（随机化快速排序），使期望复杂度稳定在 <code>O(n log n)</code>，且与输入无关。</li>
+  <li><strong>三数取中</strong>（median-of-three）：取 <code>lo</code>、<code>mid</code>、<code>hi</code> 的中位数作枢轴，廉价地避开端序，同时缓解重复元素问题。</li>
+  <li><strong>双路 / 三路划分</strong>：Hoare 双路划分或对含大量重复键使用三路划分（荷兰国旗问题），把等于枢轴的元素集中处理。</li>
+  <li><strong>内省排序</strong>（introsort）：递归深度超过 <code>2 log n</code> 时切换到堆排序，从而<strong>保证</strong> <code>O(n log n)</code>；STL 的 <code>sort</code>、Java 部分实现都采用这种策略，并在小区间改用插入排序。</li>
+</ul>
+</div>
+
+<h2>应用与局限</h2>
+
+<p>快速排序是多数标准库的默认排序核心（常与插入排序、堆排序组合成内省排序），也是外排序与并行排序的基础构件。它的划分操作还衍生出一个重要算法：<strong>快速选择</strong>（Quickselect）。求第 <code>k</code> 小的元素时，只需在划分后递归进入包含目标的那一侧，期望复杂度为 <code>O(n)</code>；C++ 的 <code>nth_element</code> 正是基于此实现，常用于求中位数、Top-k 等问题——OI 中「不允许排序，只能 O(n) 求第 k 小」的约束常常暗示使用 <code>nth_element</code>。</p>
+
+<p>局限主要有三点：最坏情况 <code>O(n²)</code>（可用随机化或内省排序规避）；<strong>不稳定</strong>，需要稳定排序时应选归并排序或基数排序；递归实现有栈开销，对栈深度受限的环境需改写为显式栈。</p>
+
+<div class="admonition info">
+<div class="admonition-title">参考</div>
+<p>Introduction to Algorithms（CLRS）第 7 章 Quicksort；<a href="https://oi-wiki.org/sort/" target="_blank" rel="noopener">OI Wiki 排序页</a>。</p>
+</div>
+
+</main>
+
+<script src="../assets/nav.js" data-base="../"></script>
+<script src="../assets/viz.js"></script>
+<script>
+(function () {
+  "use strict";
+  var barsEl = document.getElementById("bars");
+  var steps = [];
+  var runner = null;
+
+  function rangeList(lo, hi) {
+    var r = [];
+    for (var k = lo; k <= hi; k++) r.push(k);
+    return r;
+  }
+
+  // 把 [[下标, 标注], ...] 合成 {下标: "标注"}，同一下标的多个标注用空格拼接
+  function mkM(list) {
+    var m = {};
+    for (var k = 0; k < list.length; k++) {
+      var idx = list[k][0], lab = list[k][1];
+      if (!lab) continue;
+      m[idx] = m[idx] ? m[idx] + " " + lab : lab;
+    }
+    return m;
+  }
+
+  // 预计算：steps 是一次性生成的完整快照数组
+  // 快照字段：{arr, max, done(已就位下标), lo, hi(当前递归区间), pivot, cmp, swapPair, marks, msg}
+  function buildSteps(input) {
+    var arr = input.slice();
+    var n = arr.length;
+    var max = Math.max.apply(null, arr);
+    var out = [];
+    var done = [];
+    var span = null;          // 当前递归区间 {lo, hi}，null 表示无区间（初始/结束）
+    var compares = 0, swaps = 0;
+
+    function snap(extra) {
+      var s = {
+        arr: arr.slice(), max: max, done: done.slice(),
+        lo: span ? span.lo : null, hi: span ? span.hi : null,
+        pivot: null, cmp: null, swapPair: false, marks: {}
+      };
+      for (var k in extra) {
+        if (Object.prototype.hasOwnProperty.call(extra, k)) s[k] = extra[k];
+      }
+      out.push(s);
+    }
+    function mark(i) { if (done.indexOf(i) < 0) done.push(i); }
+    function at(lo, hi) { span = { lo: lo, hi: hi }; }
+
+    snap({ msg: "初始数组 A[0.." + (n - 1) + "]：" + arr.join(" ") + "。策略：每层取区间最右元素为枢轴做 Lomuto 分区，再递归左右两侧。点击「播放」或「下一步」开始。" });
+
+    function quickSort(lo, hi, depth) {
+      if (lo > hi) {
+        span = null;
+        snap({ msg: "递归进入区间 [lo, hi] = [" + lo + ", " + hi + "]，lo &gt; hi 为空区间，直接返回。" });
+        return;
+      }
+      if (lo === hi) {
+        at(lo, hi);
+        snap({ marks: mkM([[lo, "区间"]]),
+               msg: "递归深度 " + depth + "：区间 [lo, hi] = [" + lo + ", " + hi + "] 只剩 1 个元素 A[" + lo + "] = " + arr[lo] + "，天然有序。" });
+        mark(lo);
+        snap({ msg: "A[" + lo + "] 就位（转绿），区间 [" + lo + ", " + hi + "] 递归结束，回溯。" });
+        return;
+      }
+
+      at(lo, hi);
+      var pivot = arr[hi];
+      snap({ pivot: hi, marks: mkM([[hi, "pivot"], [lo, "j"]]),
+             msg: "递归深度 " + depth + "：区间 [lo, hi] = [" + lo + ", " + hi + "]，选枢轴 pivot = A[" + hi + "] = " + pivot + "（区间外的条形已淡化）。" });
+      var i = lo - 1;
+      snap({ pivot: hi, marks: mkM([[hi, "pivot"], [lo, "j"]]),
+             msg: "分区初始化：i = lo - 1 = " + (lo - 1) + "，此时「≤ pivot」区 A[" + lo + " .. " + (lo - 1) + "] 为空；扫描指针 j 从 " + lo + " 走到 " + (hi - 1) + "。" });
+
+      for (var j = lo; j <= hi - 1; j++) {
+        compares++;
+        if (arr[j] <= pivot) {
+          snap({ pivot: hi, cmp: [j], marks: mkM([[hi, "pivot"], [j, "j"], [i, "i"]]),
+                 msg: "区间 [" + lo + ", " + hi + "]，pivot = A[" + hi + "] = " + pivot + "；比较 A[" + j + "] = " + arr[j] + " 与 pivot，" + arr[j] + " ≤ " + pivot + "，需要并入左侧区。" });
+          i++;
+          if (i !== j) {
+            var vi = arr[i], vj = arr[j];
+            arr[i] = vj; arr[j] = vi; swaps++;
+            snap({ pivot: hi, cmp: [i, j], swapPair: true, marks: mkM([[hi, "pivot"], [i, "i"], [j, "j"]]),
+                   msg: "i 前进到 " + i + "，交换 A[" + i + "] = " + vi + " 与 A[" + j + "] = " + vj + "，把小元素换进 A[" + lo + " .. " + i + "]。当前数组：" + arr.join(" ") });
+          } else {
+            snap({ pivot: hi, cmp: [j], marks: mkM([[hi, "pivot"], [j, "i = j"]]),
+                   msg: "i 前进到 " + i + "，恰好 i = j = " + j + "，A[" + j + "] = " + arr[j] + " 本来就紧贴左侧区，无需交换。" });
+          }
+        } else {
+          snap({ pivot: hi, cmp: [j], marks: mkM([[hi, "pivot"], [j, "j"], [i, "i"]]),
+                 msg: "区间 [" + lo + ", " + hi + "]，pivot = A[" + hi + "] = " + pivot + "；比较 A[" + j + "] = " + arr[j] + " 与 pivot，" + arr[j] + " &gt; " + pivot + "，不交换，它留在右侧大区，j 右移。" });
+        }
+      }
+
+      var p = i + 1;
+      snap({ pivot: hi, marks: mkM([[hi, "pivot"], [p, "i+1"]]),
+             msg: "扫描结束：A[" + lo + " .. " + i + "] 都 ≤ " + pivot + "，A[" + p + " .. " + (hi - 1) + "] 都 &gt; " + pivot + "。把枢轴放到分界处。" });
+      if (p !== hi) {
+        var a = arr[p], b = arr[hi];
+        arr[p] = b; arr[hi] = a; swaps++;
+        snap({ pivot: null, cmp: [p, hi], swapPair: true, marks: mkM([[p, "i+1"], [hi, "pivot"]]),
+               msg: "交换 A[" + p + "] = " + a + " 与 A[" + hi + "] = " + b + "，枢轴归位。当前数组：" + arr.join(" ") });
+      } else {
+        snap({ pivot: null, cmp: [hi], marks: mkM([[hi, "pivot"]]),
+               msg: "p = i + 1 = " + hi + "，枢轴本来就位于分界处，无需交换。" });
+      }
+      mark(p);
+      snap({ pivot: null, marks: mkM([[p, "pivot 就位"]]),
+             msg: "partition 返回 p = " + p + "：A[" + p + "] = " + arr[p] + " 已在最终位置（转绿），左侧都不大于它、右侧都严格大于它。" });
+
+      quickSort(lo, p - 1, depth + 1);
+      quickSort(p + 1, hi, depth + 1);
+
+      at(lo, hi);
+      snap({ marks: {},
+             msg: "回溯：区间 [" + lo + ", " + hi + "]（含枢轴 A[" + p + "]）已全部就位，" + (depth === 0 ? "整个数组排序结束。" : "交给上一层继续。") });
+    }
+
+    quickSort(0, n - 1, 0);
+
+    done = rangeList(0, n - 1);
+    span = null;
+    var ok = true;
+    for (var q = 0; q + 1 < arr.length; q++) if (arr[q] > arr[q + 1]) ok = false;
+    snap({ marks: {},
+           msg: "快速排序完成" + (ok ? " ✅" : " ⚠") + " 结果：" + arr.join(" ") + "。全程比较 " + compares + " 次、交换 " + swaps + " 次。" });
+    return out;
+  }
+
+  // 约定：render(step) 收到 null 表示重置，画无高亮基态
+  function draw(step) {
+    var s = step || steps[0];
+    if (!s) return;
+    var html = "";
+    for (var i = 0; i < s.arr.length; i++) {
+      var cls = "bar";
+      var isDone = s.done.indexOf(i) >= 0;
+      if (isDone) cls += " done";
+      else if (s.pivot === i) cls += " active";
+      else if (s.cmp && s.cmp.indexOf(i) >= 0) cls += s.swapPair ? " swapping" : " comparing";
+      var inRange = (s.lo === null) || (i >= s.lo && i <= s.hi);
+      var op = inRange ? 1 : (isDone ? 0.92 : 0.25);
+      var h = Math.round(8 + 168 * s.arr[i] / s.max);
+      var lab = s.marks[i];
+      html += '<div class="' + cls + '" style="height:' + h + "px;opacity:" + op + '">' +
+        '<span class="bar-val">' + s.arr[i] + "</span>" +
+        (lab ? '<span style="position:absolute;bottom:-40px;left:50%;transform:translateX(-50%);font-size:11px;font-weight:700;color:var(--md-primary);white-space:nowrap">' + lab + "</span>" : "") +
+        '<span class="bar-idx">' + i + "</span></div>";
+    }
+    barsEl.innerHTML = html;
+  }
+
+  function restart() {
+    var n = SV.randInt(10, 14);
+    steps = buildSteps(SV.randPermutation(n, 3, 99));
+    if (!runner) {
+      runner = SV.runner({
+        host: document.getElementById("runner"),
+        msgEl: document.getElementById("msg"),
+        steps: steps,
+        render: draw
+      });
+    } else {
+      runner.setSteps(steps);
+      draw(null);
+    }
+  }
+
+  document.getElementById("btnRandom").addEventListener("click", restart);
+  restart();
+})();
+</script>
+</body>
+</html>

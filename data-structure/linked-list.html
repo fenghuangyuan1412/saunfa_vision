@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>链表 - Saunfa Vision</title>
+<link rel="stylesheet" href="../assets/style.css">
+<style>
+  /* 链表演示页专用样式（仅本页生效），颜色语义复用全站 CSS 变量 */
+  .list-stage {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 2px;
+    min-height: 120px; padding: 30px 8px 34px; position: relative;
+  }
+  .list-stage .head-tag {
+    font-size: 12px; font-weight: 700; color: var(--md-primary);
+    margin-right: 2px; white-space: nowrap;
+  }
+  .lnode {
+    width: 62px; height: 50px; flex-shrink: 0;
+    border: 1px solid rgba(0,0,0,.2); border-radius: 4px;
+    background: var(--viz-default);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 15px; position: relative;
+    transition: background .25s, transform .25s, opacity .25s;
+  }
+  .lnode .pos { position: absolute; bottom: -17px; left: 50%; transform: translateX(-50%);
+    font-size: 10.5px; font-weight: 400; color: rgba(0,0,0,.4); }
+  .lnode.cur  { background: var(--viz-comparing); }
+  .lnode.del  { background: var(--viz-swapping); color: #fff; }
+  .lnode.done { background: var(--viz-done); color: #fff; }
+  .lnode.enter { transform: translateY(-30px); opacity: 0; }
+  .lnode.vanish { transform: translateY(-30px); opacity: 0; }
+  .arrow { font-weight: 700; font-size: 18px; color: rgba(0,0,0,.45); padding: 0 1px; }
+  .nullbox {
+    min-width: 52px; height: 50px; flex-shrink: 0;
+    border: 1px solid rgba(0,0,0,.2); border-radius: 4px;
+    background: var(--viz-eliminated); color: rgba(0,0,0,.5);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 13px;
+  }
+  .list-stage .empty-hint {
+    padding: 12px 18px; border: 1px dashed rgba(0,0,0,.25); border-radius: 4px;
+    color: var(--md-text-light); font-size: 13.5px; background: #fff;
+  }
+  .list-stage.stage-err { box-shadow: 0 0 0 3px var(--viz-swapping); border-radius: 4px; }
+</style>
+</head>
+<body data-page="data-structure/linked-list">
+<main class="sv-content">
+
+<h1>链表</h1>
+
+<p><strong>单链表</strong>（Singly Linked List）是由一串<strong>节点</strong>组成的线性结构：每个节点保存一个值 <code>val</code> 和一个指向后继节点的指针 <code>next</code>，最后一个节点的 <code>next</code> 指向 <code>NULL</code>。与数组不同，链表的元素在内存中不必连续，靠指针串联，因此<strong>在已知位置前驱时插入/删除只需改一根指针</strong>，代价是访问第 k 个元素必须从头沿链行走。</p>
+
+<h2>算法原理</h2>
+
+<p>节点定义与五类基本操作（均以「值 + next」的节点为单元）：</p>
+
+<pre><code>struct Node {
+    int  val
+    Node next    // 指向后继；尾节点的 next = NULL
+}
+
+insertHead(head, v):        // 头插 O(1)
+    node = Node(v)
+    node.next = head
+    return node             // 新节点成为新的 head
+
+insertTail(head, v):        // 尾插：先走到 NULL 前一个节点，O(n)
+    cur = head
+    while cur != NULL and cur.next != NULL:
+        cur = cur.next
+    if cur == NULL: return Node(v)     // 空表
+    cur.next = Node(v)
+    return head
+
+delete(head, v):            // 删除首个值等于 v 的节点，O(n)
+    if head != NULL and head.val == v:
+        return head.next
+    prev = head
+    while prev != NULL and prev.next != NULL:
+        if prev.next.val == v:
+            prev.next = prev.next.next // 摘链
+            return head
+        prev = prev.next
+    return head                        // 走到 NULL，未找到
+
+find(head, v):              // 查找，O(n)
+    k = 0
+    cur = head
+    while cur != NULL:
+        if cur.val == v: return k
+        cur = cur.next; k = k + 1
+    return -1</code></pre>
+
+<p>删除与「在第 k 个位置插入」都需要拿到目标位置的<strong>前驱节点</strong>，这正是下面技巧的用武之地。</p>
+
+<div class="admonition tip">
+<div class="admonition-title">提示：哨兵头节点（dummy head）</div>
+<p>操作真实头节点时要区分「插/删的是不是第一个」两种情况，代码啰嗦且易错。<strong>哨兵技巧</strong>：在链表最前面挂一个不存数据、仅作锚点的 <code>dummy</code> 节点，所有操作从 <code>dummy</code> 出发，那么任何节点（包括原头节点）都有前驱，删除统一写成 <code>prev.next = prev.next.next</code>，插入统一挂在某个 <code>prev</code> 之后，返回 <code>dummy.next</code> 即为新的链表头。反转链表、合并有序链表、快慢指针找中点等问题都因它省下大量特判。</p>
+</div>
+
+<h2>可视化演示</h2>
+
+<div class="viz-panel">
+  <div class="viz-stage"><div class="list-stage" id="listStage"></div></div>
+  <div class="viz-msg" id="msg"></div>
+  <div class="viz-legend">
+    <span class="chip"><span class="sw" style="background:var(--viz-default)"></span>普通节点</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-comparing)"></span>遍历访问中</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-swapping)"></span>正在删除</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-done)"></span>新节点就位 / 命中</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-eliminated)"></span>NULL 终止</span>
+  </div>
+  <div class="viz-controls">
+    <label>值 <input type="number" id="valInp" step="1" placeholder="整数"></label>
+    <button id="btnInsHead" class="viz-btn primary">头部插入</button>
+    <button id="btnInsTail" class="viz-btn">尾部插入</button>
+    <button id="btnDelete" class="viz-btn">删除首个值 v</button>
+    <button id="btnFind" class="viz-btn">查找值 v</button>
+    <button id="btnRandom" class="viz-btn">🎲 随机生成 5~7 个节点</button>
+  </div>
+</div>
+
+<h2>复杂度分析</h2>
+
+<table>
+  <thead><tr><th>操作</th><th>时间复杂度</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td>头部插入</td><td><code>O(1)</code></td><td>新节点 next 指向旧 head 即可</td></tr>
+    <tr><td>尾部插入（无尾指针）</td><td><code>O(n)</code></td><td>必须沿 next 走到尾节点；维护尾指针可降为 O(1)</td></tr>
+    <tr><td>按位插入 / 删除</td><td><code>O(n)</code></td><td>定位前驱需要遍历；改接指针本身 O(1)</td></tr>
+    <tr><td>查找值 v</td><td><code>O(n)</code></td><td>无序链表只能线性扫描，最坏走完到 NULL</td></tr>
+    <tr><td>访问下标 i</td><td><code>O(n)</code></td><td>不支持随机访问，这是与数组的本质区别</td></tr>
+    <tr><td>空间复杂度</td><td><code>O(n)</code></td><td>每个节点额外一个 next 指针</td></tr>
+  </tbody>
+</table>
+
+<h2>应用与局限</h2>
+
+<p>链表适合「频繁在已知位置附近增删、不按下标访问」的场景：<strong>LRU 缓存</strong>用哈希表 + 双向链表实现 O(1) 的命中提升与逐出；<strong>约瑟夫环</strong>用循环链表自然模拟报数出局；<strong>快慢指针</strong>可在链表上判环、找中点与倒数第 k 个节点（Floyd 判圈，见 <a href="https://oi-wiki.org/ds/list/" target="_blank" rel="noopener">OI Wiki 链表页</a>）。局限：无法二分与随机访问；每节点一个指针的额外空间与堆式分配带来的缓存不友好，使同样 O(n) 的遍历在实测中明显慢于数组。</p>
+
+<div class="admonition info">
+<div class="admonition-title">参考</div>
+<p><a href="https://oi-wiki.org/ds/list/" target="_blank" rel="noopener">OI Wiki · 链表与邻接表</a>；Introduction to Algorithms 第 10.2 节。</p>
+</div>
+
+</main>
+
+<script src="../assets/nav.js" data-base="../"></script>
+<script src="../assets/viz.js"></script>
+<script>
+(function () {
+  var stage = document.getElementById("listStage");
+  var msgEl = document.getElementById("msg");
+  var valInp = document.getElementById("valInp");
+  var btnIds = ["btnInsHead", "btnInsTail", "btnDelete", "btnFind", "btnRandom"];
+  var btns = [];
+  for (var b = 0; b < btnIds.length; b++) btns.push(document.getElementById(btnIds[b]));
+
+  var nodes = [3, 7, 1, 9, 4]; // 演示链表当前内容（head 在左）
+  var hl = null;               // 高亮：{i: 下标, cls: "cur"|"del"|"done"}
+  var busy = false;            // 动画期间禁用按钮
+  var STEP_MS = 480;           // 每个遍历帧的间隔
+
+  function setMsg(html) { msgEl.innerHTML = html; }
+  function setEnabled(on) {
+    busy = !on;
+    for (var i = 0; i < btns.length; i++) btns[i].disabled = !on;
+    valInp.disabled = !on;
+  }
+  function flashError(html) {
+    setMsg(html);
+    stage.classList.add("stage-err");
+    setTimeout(function () { stage.classList.remove("stage-err"); }, 450);
+  }
+  function chain() { return nodes.length ? nodes.join(" → ") + " → NULL" : "（空表）NULL"; }
+
+  function render() {
+    var html = '<span class="head-tag">head&nbsp;&nbsp;→</span>';
+    for (var i = 0; i < nodes.length; i++) {
+      var cls = "lnode";
+      if (hl && hl.i === i) cls += " " + hl.cls;
+      html += '<div class="' + cls + '">' + SV.esc(nodes[i]) +
+        '<span class="pos">#' + (i + 1) + "</span></div>";
+      html += '<span class="arrow">→</span>';
+    }
+    html += '<div class="nullbox">NULL</div>';
+    stage.innerHTML = html;
+  }
+
+  // 逐帧执行：frames 是一组函数，每帧之间等待 STEP_MS，全程禁用按钮
+  function runFrames(frames) {
+    var i = 0;
+    function next() {
+      if (i >= frames.length) { setEnabled(true); return; }
+      frames[i](); i++;
+      setTimeout(next, STEP_MS);
+    }
+    setEnabled(false);
+    next();
+  }
+
+  function readInput() {
+    var v = parseInt(valInp.value, 10);
+    if (isNaN(v)) { flashError("请先在输入框中填写一个整数（当前输入无效）。"); return null; }
+    if (String(v).length > 4) { flashError("数值 " + v + " 过长，为显示清晰请使用 4 位以内的整数。"); return null; }
+    return v;
+  }
+
+  function insertHead() {
+    var v = readInput(); if (v === null) return;
+    nodes.unshift(v);
+    runFrames([
+      function () { hl = { i: 0, cls: "done" }; render();
+        setMsg("头插 " + v + "：新节点 next 指向原头节点" +
+          (nodes.length > 1 ? " " + nodes[1] : "（原表为空）") + "，新节点成为 head，链表长度 " + nodes.length + "。"); },
+      function () { hl = null; render();
+        setMsg("头插完成：" + chain()); }
+    ]);
+  }
+
+  function insertTail() {
+    var v = readInput(); if (v === null) return;
+    if (nodes.length === 0) {
+      nodes.push(v);
+      runFrames([
+        function () { hl = { i: 0, cls: "done" }; render();
+          setMsg("尾插 " + v + "：链表为空，新节点直接作为头节点兼尾节点。"); },
+        function () { hl = null; render(); setMsg("尾插完成：" + chain()); }
+      ]);
+      return;
+    }
+    var frames = [];
+    var n = nodes.length;
+    for (var i = 0; i < n; i++) {
+      (function (k) {
+        frames.push(function () {
+          hl = { i: k, cls: "cur" }; render();
+          setMsg("无尾指针，只能从 head 走到尾：cur = " + nodes[k] + "（第 " + (k + 1) + " 个节点），" +
+            (k + 1 < n ? "next 不是 NULL，前进。" : "next 为 NULL，它就是尾节点。"));
+        });
+      })(i);
+    }
+    frames.push(function () {
+      nodes.push(v);
+      hl = { i: nodes.length - 1, cls: "done" }; render();
+      setMsg("尾插 " + v + "：挂到原尾节点 " + nodes[nodes.length - 2] + " 的 next 上，新节点就位（绿）。");
+    });
+    frames.push(function () { hl = null; render(); setMsg("尾插完成：共走 " + n + " 步，链表长度 " + nodes.length + "。" + chain()); });
+    runFrames(frames);
+  }
+
+  function deleteFirst() {
+    var v = readInput(); if (v === null) return;
+    if (nodes.length === 0) { flashError("删除 " + v + "：链表为空（head 就是 NULL），没有可删除的节点。"); return; }
+    var frames = [];
+    var at = nodes.indexOf(v);
+    var n = nodes.length;
+    var last = at >= 0 ? at : n - 1;   // 命中即停；未命中则走到最后一个节点
+    for (var i = 0; i <= last; i++) {
+      (function (k) {
+        frames.push(function () {
+          if (k === at) {
+            hl = { i: k, cls: "del" }; render();
+            setMsg("cur = " + nodes[k] + "（第 " + (k + 1) + " 个节点）== 目标 " + v +
+              "，命中，标记为红：将由其前驱" + (k === 0 ? "（k=0，直接改 head）" : " " + nodes[k - 1]) +
+              " 执行 prev.next = cur.next 摘链。");
+          } else if (k === last) {
+            hl = { i: k, cls: "cur" }; render();
+            setMsg("cur = " + nodes[k] + "（第 " + (k + 1) + " 个节点）≠ 目标 " + v +
+              "，它的 next 已是 NULL——走完到 NULL，停止。");
+          } else {
+            hl = { i: k, cls: "cur" }; render();
+            setMsg("从 head 出发：cur = " + nodes[k] + " → 访问第 " + (k + 1) + " 个节点 " + nodes[k] +
+              "≠ 目标 " + v + "，前进。");
+          }
+        });
+      })(i);
+    }
+    if (at >= 0) {
+      frames.push(function () {
+        var removed = nodes[at];
+        nodes.splice(at, 1);
+        hl = null; render();
+        setMsg("删除完成：第 " + (at + 1) + " 个节点 " + removed +
+          " 已摘链" + (at === 0 ? "，head 改为 " + (nodes.length ? nodes[0] : "NULL") : "") +
+          "，链表长度 " + nodes.length + "。" + chain());
+      });
+    } else {
+      frames.push(function () {
+        hl = null; render();
+        setMsg("结论：链表中不存在值 " + v + "，未做改动。共访问 " + n + " 个节点后碰到 NULL。" + chain());
+      });
+    }
+    runFrames(frames);
+  }
+
+  function findVal() {
+    var v = readInput(); if (v === null) return;
+    if (nodes.length === 0) { flashError("查找 " + v + "：链表为空（head 就是 NULL），直接判定不存在。"); return; }
+    var frames = [];
+    var at = nodes.indexOf(v);
+    var n = nodes.length;
+    var last = at >= 0 ? at : n - 1;   // 命中即停；未命中则走到 NULL 前最后一个节点
+    for (var i = 0; i <= last; i++) {
+      (function (k) {
+        frames.push(function () {
+          if (k === at) {
+            hl = { i: k, cls: "done" }; render();
+            setMsg("cur = " + nodes[k] + " == 目标 " + v + "，命中！位于第 " + (k + 1) +
+              " 个位置（下标 " + k + "），共比较 " + (k + 1) + " 次。");
+          } else if (k === last) {
+            hl = { i: k, cls: "cur" }; render();
+            setMsg("cur = " + nodes[k] + "（第 " + (k + 1) + " 个）≠ " + v + "，next 为 NULL：走完到 NULL，判定不存在。");
+          } else {
+            hl = { i: k, cls: "cur" }; render();
+            setMsg("从 head 出发：cur = " + nodes[k] + " → 访问第 " + (k + 1) + " 个节点 " + nodes[k] +
+              "≠ 目标 " + v + "，前进。");
+          }
+        });
+      })(i);
+    }
+    if (at < 0) {
+      frames.push(function () {
+        hl = null; render();
+        setMsg("查找 " + v + " 失败：返回 -1。链表无序，最坏必须访问全部 " + n + " 个节点。" + chain());
+      });
+    }
+    runFrames(frames);
+  }
+
+  function randomGen() {
+    nodes = SV.randPermutation(SV.randInt(5, 7), 1, 99);
+    hl = null; render();
+    setMsg("随机生成长度 " + nodes.length + " 的链表：" + chain() +
+      "。试试「查找值 v」或「删除首个值 v」，观察遍历如何走完到 NULL。");
+  }
+
+  btns[0].addEventListener("click", insertHead);
+  btns[1].addEventListener("click", insertTail);
+  btns[2].addEventListener("click", deleteFirst);
+  btns[3].addEventListener("click", findVal);
+  btns[4].addEventListener("click", randomGen);
+
+  // 页面加载即渲染基态
+  render();
+  setMsg("初始链表：head → " + chain() +
+    "。填写值后用按钮操作；遍历时当前节点橙色，删除变红摘链，新节点就位绿色后转默认。");
+})();
+</script>
+</body>
+</html>

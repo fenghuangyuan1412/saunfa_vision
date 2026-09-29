@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>二分查找 - Saunfa Vision</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body data-page="searching/binary-search">
+<main class="sv-content">
+
+<h1>二分查找</h1>
+
+<p><strong>二分查找</strong>（Binary Search）是在<strong>有序数组</strong>上定位目标值的基础算法。它每次都考察区间中点：若中点元素等于目标则结束；否则根据比较结果把搜索区间 halve（折半），丢掉不可能包含答案的一半。查找过程构成一条清晰的循环不变量。</p>
+
+<h2>算法原理</h2>
+
+<p>设数组 <code>A</code> 升序且无重复元素，维护闭区间 <code>[lo, hi]</code> 表示「若目标存在，必在此区间内」。初始 <code>lo = 0</code>，<code>hi = n-1</code>。每一轮取 <code>mid = (lo + hi) &gt;&gt; 1</code>，比较 <code>A[mid]</code> 与目标 <code>t</code>：</p>
+
+<ul>
+  <li><code>A[mid] == t</code>：命中，返回 <code>mid</code>；</li>
+  <li><code>A[mid] &lt; t</code>：目标只可能在右侧，收缩为 <code>[mid+1, hi]</code>，即 <code>lo = mid + 1</code>；</li>
+  <li><code>A[mid] &gt; t</code>：目标只可能在左侧，收缩为 <code>[lo, mid-1]</code>，即 <code>hi = mid - 1</code>。</li>
+</ul>
+
+<p><strong>循环不变量</strong>：进入每一轮时，若目标存在于数组，则它一定落在当前闭区间 <code>[lo, hi]</code> 内。初始化时区间为全数组，显然成立；上面三种收缩都只剔除「比较过且确定不等于目标」或「由单调性排除」的下标，不变量得以保持。循环终止有两种情况：命中返回；或 <code>lo &gt; hi</code> 区间变空——由不变量可知目标必然不存在，返回未找到。</p>
+
+<pre><code>function binarySearch(A[0..n-1], t):   // A 升序、无重复
+    lo = 0, hi = n - 1
+    while lo &lt;= hi:
+        mid = (lo + hi) &gt;&gt; 1
+        if A[mid] == t:
+            return mid          // 命中
+        else if A[mid] &lt; t:
+            lo = mid + 1        // 排除 [lo, mid]
+        else:
+            hi = mid - 1        // 排除 [mid, hi]
+    return -1                   // 区间为空，未找到</code></pre>
+
+<p>区间每轮至少折半，比较次数不超过 <code>⌈log₂(n+1)⌉</code> 次。</p>
+
+<div class="admonition warning">
+<div class="admonition-title">注意：mid 溢出与边界坑</div>
+<p><strong>1. mid 溢出。</strong>在 C++/Java 等定宽整型下，<code>mid = (lo + hi) / 2</code> 当 <code>lo + hi</code> 超过 <code>INT_MAX</code> 时会溢出为负数。标准写法是 <code>mid = lo + ((hi - lo) &gt;&gt; 1)</code>：先作差再折半，结果不变但中间值不会溢出。JavaScript 的数字有 53 位整数精度，常规规模下无碍，但这个写法习惯应当保留。</p>
+<p><strong>2. 「查找第一个 / 最后一个」的边界坑。</strong>当数组允许重复、要求返回第一个（最后一个）等于目标的位置时，命中后不能立即返回：找第一个应在命中后仍向左收缩 <code>hi = mid - 1</code> 并记录候选；找最后一个则向右收缩 <code>lo = mid + 1</code>。若改写成 <code>while lo &lt; hi</code> 配合 <code>hi = mid</code> 的「左闭右开/半开区间」模板，则必须保证 <code>mid</code> 取整方向与收缩方向匹配（否则 <code>lo == hi</code> 时 <code>mid = (lo+hi)&gt;&gt;1</code> 恒等于 <code>lo</code>，区间不再缩小，产生死循环）。核心心法：<strong>选定一套区间语义（本页用闭区间 <code>[lo, hi]</code>），初始化、循环条件、两处收缩必须整体自洽，不可混用。</strong></p>
+</div>
+
+<h2>可视化演示</h2>
+
+<div class="viz-panel">
+  <div class="viz-stage"><div class="cell-stage" id="cells"></div></div>
+  <div class="viz-msg" id="msg"></div>
+  <div class="viz-legend">
+    <span class="chip"><span class="sw" style="background:var(--viz-default)"></span>当前区间（未排除）</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-comparing)"></span>mid 正在比较</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-eliminated)"></span>已排除</span>
+    <span class="chip"><span class="sw" style="background:var(--viz-done)"></span>命中</span>
+  </div>
+  <div id="runner"></div>
+  <div class="viz-controls">
+    <label>目标值 <input type="number" id="targetInp" step="1"></label>
+    <button id="btnSearch" class="viz-btn primary">🔍 查找</button>
+    <button id="btnRandom" class="viz-btn">🎲 随机新数组与目标</button>
+  </div>
+</div>
+
+<h2>复杂度分析</h2>
+
+<table>
+  <thead><tr><th>指标</th><th>量级</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td>最优时间复杂度</td><td><code>O(1)</code></td><td>第一轮 mid 恰好命中</td></tr>
+    <tr><td>平均时间复杂度</td><td><code>O(log n)</code></td><td>区间每轮折半，约 log₂n 次比较</td></tr>
+    <tr><td>最坏时间复杂度</td><td><code>O(log n)</code></td><td>未找到时收缩到区间为空，仍为 ⌈log₂(n+1)⌉ 轮</td></tr>
+    <tr><td>空间复杂度</td><td><code>O(1)</code></td><td>迭代版仅用 lo/hi/mid 三个变量（递归版为 O(log n) 调用栈）</td></tr>
+  </tbody>
+</table>
+
+<h2>应用与局限</h2>
+
+<p>二分查找是「有序性 ⇒ 折半排除」这一思想的原型：在<strong>旋转有序数组</strong>中查找目标时，mid 至少有一侧保持有序，可先判断落点侧再收缩；<strong>二分答案</strong>则把「求最小/最大的满足某单调性质的值」化为对答案区间的判定，不要求数据本身可随机访问，只要求判定函数单调（详见 <a href="https://oi-wiki.org/search/binary/" target="_blank" rel="noopener">OI Wiki 二分页</a>）。局限：前提是数据有序且支持随机访问；对需要频繁插拔的集合，维护有序数组的代价高，一般改用平衡树或哈希结构。另外二分对缓存友好性不如线性扫描，小规模数据（n &lt; 64 左右）时 std::lower_bound 未必比手工线性快。</p>
+
+<div class="admonition info">
+<div class="admonition-title">参考</div>
+<p>Introduction to Algorithms 第 2 章思考题 2-3；<a href="https://oi-wiki.org/search/binary/" target="_blank" rel="noopener">OI Wiki 二分查找页</a>。</p>
+</div>
+
+</main>
+
+<script src="../assets/nav.js" data-base="../"></script>
+<script src="../assets/viz.js"></script>
+<script>
+(function () {
+  var cellsEl = document.getElementById("cells");
+  var inp = document.getElementById("targetInp");
+  var arr = [];
+  var target = 0;
+  var steps = [];
+  var runner = null;
+
+  function genArray() {
+    var n = SV.randInt(12, 15);
+    var a = SV.randPermutation(n, 3, 99);
+    a.sort(function (x, y) { return x - y; });
+    return a;
+  }
+
+  // 一半概率取数组中的值（必然命中），一半概率取数组外的值（演示未找到）
+  function genTarget(a) {
+    if (Math.random() < 0.5) return a[SV.randInt(0, a.length - 1)];
+    var t;
+    do { t = SV.randInt(1, 100); } while (a.indexOf(t) >= 0);
+    return t;
+  }
+
+  // 预计算：每个 step 是完整快照 {lo, hi, mid, phase, foundAt, msg}
+  // phase: "start" | "compare" | "shrink" | "hit" | "fail"
+  function buildSteps(a, t) {
+    var out = [];
+    var lo = 0, hi = a.length - 1, cmpCount = 0;
+    function snap(extra) {
+      var s = { lo: lo, hi: hi, mid: undefined, phase: "start", foundAt: -1 };
+      for (var k in extra) s[k] = extra[k];
+      out.push(s);
+    }
+    snap({ msg: "升序数组共 " + a.length + " 个元素，目标 t = " + t +
+      "。初始化 lo = 0，hi = " + hi + "，闭区间 [0, " + hi + "] 覆盖全数组。点击「播放」或「下一步」开始。" });
+    while (lo <= hi) {
+      var mid = (lo + hi) >> 1;
+      cmpCount++;
+      snap({ mid: mid, phase: "compare",
+        msg: "lo = " + lo + "，hi = " + hi + "，mid = (lo+hi)>>1 = " + mid +
+          "。取 A[" + mid + "] = " + a[mid] + " 与目标 " + t + " 比较（第 " + cmpCount + " 次比较）。" });
+      if (a[mid] === t) {
+        snap({ mid: mid, phase: "hit", foundAt: mid,
+          msg: "A[" + mid + "] = " + a[mid] + " = 目标 " + t + "，命中！目标位于下标 " + mid + "，共比较 " + cmpCount + " 次。" });
+        return out;
+      }
+      if (a[mid] < t) {
+        var oldLo = lo;
+        lo = mid + 1;
+        snap({ mid: mid, phase: "shrink",
+          msg: "lo=" + oldLo + " hi=" + hi + " mid=" + mid + "，A[" + mid + "] = " + a[mid] +
+            " < 目标 " + t + "，左半连同 mid 排除，lo = " + lo + "。当前区间 [" + lo + ", " + hi + "]。" });
+      } else {
+        var oldHi = hi;
+        hi = mid - 1;
+        snap({ mid: mid, phase: "shrink",
+          msg: "lo=" + lo + " hi=" + oldHi + " mid=" + mid + "，A[" + mid + "] = " + a[mid] +
+            " > 目标 " + t + "，右半连同 mid 排除，hi = " + hi + "。当前区间 [" + lo + ", " + hi + "]。" });
+      }
+    }
+    snap({ phase: "fail",
+      msg: "lo = " + lo + " > hi = " + hi + "，搜索区间为空。由循环不变量，若目标存在必在区间内，故目标 " + t +
+        " 不在数组中，返回 -1，共比较 " + cmpCount + " 次。" });
+    return out;
+  }
+
+  // 指针标注：同一位置的 lo/hi/mid 并列显示，如 lo|mid
+  function ptrLabelAt(s, i) {
+    var parts = [];
+    if (s.lo === i) parts.push("lo");
+    if (s.mid === i) parts.push("mid");
+    if (s.hi === i) parts.push("hi");
+    return parts.join("|");
+  }
+
+  // 约定：render(step) 收到 null 表示重置，画无高亮基态
+  function draw(step) {
+    var s = step || steps[0];
+    if (!s) return;
+    var html = "";
+    for (var i = 0; i < arr.length; i++) {
+      var cls = "cell";
+      if (s.foundAt === i) cls += " done";
+      else if (s.phase === "compare" && s.mid === i) cls += " comparing";
+      else if (i < s.lo || i > s.hi) cls += " eliminated";
+      var lbl = ptrLabelAt(s, i);
+      html += '<div class="' + cls + '">' + arr[i] +
+        (lbl ? '<span class="ptr">' + lbl + "</span>" : "") +
+        '<span class="idx">' + i + "</span></div>";
+    }
+    cellsEl.innerHTML = html;
+  }
+
+  function apply(newArr, newTarget) {
+    if (newArr) arr = newArr;
+    if (newTarget !== null && newTarget !== undefined) target = newTarget;
+    inp.value = target;
+    steps = buildSteps(arr, target);
+    if (!runner) {
+      runner = SV.runner({
+        host: document.getElementById("runner"),
+        msgEl: document.getElementById("msg"),
+        steps: steps,
+        render: draw
+      });
+    } else {
+      runner.setSteps(steps);
+    }
+  }
+
+  document.getElementById("btnSearch").addEventListener("click", function () {
+    var v = parseInt(inp.value, 10);
+    if (isNaN(v)) v = genTarget(arr); // 输入非法时随机取一个目标
+    apply(null, v);
+  });
+
+  document.getElementById("btnRandom").addEventListener("click", function () {
+    apply(genArray(), genTarget(arr));
+  });
+
+  // 页面加载即渲染基态
+  apply(genArray(), genTarget(arr));
+})();
+</script>
+</body>
+</html>
