@@ -33,6 +33,7 @@
       { key: "searching/binary-search", href: "searching/binary-search.html", title: "二分查找" }
     ]},
     { label: "动态规划", items: [
+      { key: "dp/yan-dp-analysis",  href: "dp/yan-dp-analysis.html",  title: "闫式 DP 分析法" },
       { key: "dp/number-triangle",     href: "dp/number-triangle.html",     title: "数字三角形" },
       { key: "dp/lis",                 href: "dp/lis.html",                 title: "最长上升子序列" },
       { key: "dp/max-subarray",        href: "dp/max-subarray.html",        title: "最大子段和" },

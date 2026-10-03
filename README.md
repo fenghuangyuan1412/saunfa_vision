@@ -43,6 +43,7 @@
 
 | 算法 | 在线演示 | 仓库源码 |
 |---|---|---|
+| 闫式 DP 分析法 | <https://fenghuangyuan1412.github.io/saunfa_vision/dp/yan-dp-analysis.html> | [dp/yan-dp-analysis.html](dp/yan-dp-analysis.html) |
 | 数字三角形 | <https://fenghuangyuan1412.github.io/saunfa_vision/dp/number-triangle.html> | [dp/number-triangle.html](dp/number-triangle.html) |
 | 最长上升子序列 | <https://fenghuangyuan1412.github.io/saunfa_vision/dp/lis.html> | [dp/lis.html](dp/lis.html) |
 | 最大子段和 | <https://fenghuangyuan1412.github.io/saunfa_vision/dp/max-subarray.html> | [dp/max-subarray.html](dp/max-subarray.html) |
